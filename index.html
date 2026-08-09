@@ -3686,6 +3686,18 @@ document.getElementById('btnLogLoadMore').addEventListener('click', function(){ 
 document.getElementById('logCari').addEventListener('keydown', function(e){ if(e.key === 'Enter') resetAndLoadActivityLog_(); });
 
 tryRestoreSession_();
+
+// Daftarkan service worker — syarat wajib agar Chrome membuatkan WebAPK resmi
+// (ditandatangani Google) saat "Install app"/"Add to Home screen", bukan sekadar
+// shortcut. Dibungkus try/catch & pengecekan fitur supaya tidak mengganggu
+// browser lama yang belum mendukung service worker.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('./sw.js').catch(function (err) {
+      console.warn('Pendaftaran service worker gagal:', err);
+    });
+  });
+}
 </script>
 </body>
 </html>

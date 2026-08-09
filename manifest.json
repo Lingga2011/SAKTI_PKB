@@ -1,7 +1,10 @@
 {
+  "id": "./index.html",
   "name": "SAKTI PKB",
   "short_name": "SAKTI PKB",
   "description": "SAKTI PKB - Provinsi Banten",
+  "lang": "id",
+  "categories": ["government", "utilities"],
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
