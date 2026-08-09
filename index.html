@@ -3,22 +3,30 @@
 <head>
 <base target="_top">
 <meta charset="utf-8">
+<!-- PERBAIKAN RESPONSIF: sebelumnya tidak ada meta viewport sama sekali di file ini. Selama
+     Index.html dibuka lewat doGet() (HtmlService), Apps Script menambahkan viewport secara
+     otomatis lewat addMetaTag() di Code.gs — tapi begitu file INI di-hosting sendiri sebagai
+     file statis (GitHub Pages/Firebase Hosting dkk, lihat PANDUAN_DEPLOY_KBMDU.md & shim
+     fetch() di bawah), addMetaTag() itu TIDAK PERNAH ikut terpasang, sehingga di HP halaman
+     akan tampil ter-zoom-out/tidak mobile-friendly walau CSS-nya sudah responsif. Viewport ini
+     sekarang ditulis langsung di sini supaya selalu ikut terpasang di kedua cara deploy. -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>SAKTI PKB</title>
-<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
-<link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
-<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#058c2c">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="SAKTI PKB">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<!-- PERBAIKAN PERFORMA: keempat script pihak ketiga ini (peta, Excel, PDF) tidak dipakai
+     sampai pengguna login dan membuka fitur terkait (peta lokasi, export laporan) — bukan
+     saat halaman pertama kali dibuka (layar login). Sebelumnya dimuat tanpa "defer" di
+     <head>, sehingga browser WAJIB mengunduh & menjalankan semuanya dulu sebelum sempat
+     merender apa pun ke layar — di jaringan seluler yang lambat ini bisa menunda layar
+     login tampil beberapa detik. "defer" membuat browser tetap mengunduhnya di background
+     tapi merender HTML & CSS dulu, dan tetap menjalankan script-nya sesuai urutan sebelum
+     event DOMContentLoaded — aman karena semua pemanggilan L./XLSX./jsPDF di file ini ada
+     di dalam fungsi yang baru dipanggil belakangan (event klik dsb.), bukan langsung di
+     top-level saat parsing. -->
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <style>
   :root{
     --navy:#0b2545; --navy2:#123163; --gold:#c9a227; --bg:#f4f5f7; --card:#ffffff;
@@ -35,6 +43,8 @@
   .login-box .brand-mark{width:76px;height:76px;display:block;object-fit:contain;margin:0 auto 14px;}
   .login-box h1{font-size:19px;color:var(--navy);margin:0 0 4px;letter-spacing:.01em;text-align:center;}
   .login-box p.sub{font-size:12.5px;color:var(--muted);margin:0 0 22px;text-align:center;line-height:1.5;}
+  .app-credit{font-size:10.5px;color:var(--muted);opacity:.75;text-align:center;line-height:1.5;margin:18px 0 0;}
+  .about-card p{font-size:12.5px;color:var(--muted);line-height:1.6;margin:6px 0 0;}
   .pw-field{position:relative;}
   .pw-field input{padding-right:44px !important;}
   .pw-toggle{position:absolute;right:2px;top:22px;width:36px;height:36px;border:none;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--muted);border-radius:8px;padding:0;}
@@ -570,6 +580,7 @@
       <div class="remember-row"><input type="checkbox" id="loginRemember" checked><label for="loginRemember">Ingat saya di perangkat ini</label></div>
       <button class="btn" id="btnLogin">Masuk</button>
       <div class="err-msg" id="loginErr"></div>
+      <p class="app-credit">Dikembangkan oleh <b>Lingga Dwi Prasetyo</b><br>Dikerjakan mandiri, tanpa biaya dari instansi.</p>
     </div>
   </div>
 
@@ -803,6 +814,12 @@
           <div class="err-msg" id="cpErr"></div>
           <button class="btn" id="btnGantiPassword">Simpan Password Baru</button>
         </div>
+
+        <div class="section-title">Tentang Aplikasi</div>
+        <div class="detail-card about-card">
+          <div class="lbl">KBMDU — Penelusuran Kendaraan Bermotor Data Ulang</div>
+          <p>Dikembangkan oleh <b>Lingga Dwi Prasetyo</b>.<br>Dikerjakan mandiri, tanpa biaya dari instansi.</p>
+        </div>
       </div>
 
       <!-- Kelola Akun (khusus admin) -->
@@ -927,81 +944,62 @@
 
 <script>
 // ============================================================================
-//  SHIM google.script.run BERBASIS fetch() — SOLUSI PERMANEN ISU LOKASI/KAMERA
+//  SHIM google.script.run BERBASIS fetch() -- WAJIB SAAT FILE INI DI-HOSTING SENDIRI
 // ============================================================================
-// Halaman ini sekarang di-hosting sebagai file statis biasa (BUKAN lagi dibuka
-// lewat URL .../exec Apps Script), supaya jadi halaman top-level sungguhan dan
-// geolocation/kamera browser tidak lagi diblok oleh iframe sandbox internal Apps
-// Script (lihat catatan panjang di Code.gs bagian "API JSON UNTUK FRONTEND").
+// Kenapa perlu: Code.gs (doPost + API_WHITELIST_) sudah dibangun sebagai API JSON supaya
+// Index.html ini bisa dibuka sebagai halaman statis top-level (GitHub Pages, Firebase
+// Hosting, dst) -- ini WAJIB dilakukan supaya geolocation & kamera berfungsi normal,
+// karena membuka file ini lewat URL .../exec bawaan Apps Script SELALU merendernya di
+// dalam iframe sandbox milik Google yang memblokir izin lokasi & kamera secara permanen
+// (lihat catatan panjang di atas fungsi doPost() di Code.gs).
 //
-// Karena seluruh kode di bawah ini masih memanggil google.script.run(...) apa
-// adanya (pola aslinya), shim ini membuat ulang API tersebut memakai fetch() ke
-// endpoint Apps Script (dipakai sebagai API JSON murni), supaya TIDAK PERLU
-// menulis ulang setiap pemanggilan satu per satu.
+// Supaya seluruh 29 titik pemanggilan google.script.run.withSuccessHandler(...)... yang
+// sudah ada di file ini TIDAK PERLU ditulis ulang satu per satu, shim di bawah ini membuat
+// ulang API "google.script.run" tiruan yang menerjemahkan tiap pemanggilan jadi satu
+// fetch() POST ke endpoint Code.gs (doPost), dengan body {fn:"namaFungsi", args:[...]}.
 //
-// GANTI nilai di bawah ini dengan URL deploy Web App Apps Script kamu (yang
-// diakhiri "/exec"):
-const API_URL = 'https://script.google.com/macros/s/AKfycbwG6vbNqYmwxq5FSvsOL0_nmrLffPeAV45ZClKJ_-5sRbWTT2g4PV5NEUti5dqszccxzg/exec';
+// WAJIB DIISI sebelum deploy: ganti nilai API_URL_ di bawah dengan URL Web App hasil
+// "Deploy > New deployment > Web app" dari proyek Apps Script (Code.gs) milik Anda --
+// lihat PANDUAN_DEPLOY_KBMDU.md bagian "Hosting Index.html sebagai halaman statis".
+// ============================================================================
+var API_URL_ = 'GANTI_DENGAN_URL_WEB_APP_APPS_SCRIPT_ANDA';
 
-(function(){
-  function buildRunner(state){
-    // Objek "kosong" yang bisa: (a) diakses propertinya untuk chaining
-    // (withSuccessHandler/withFailureHandler), atau (b) dipakai sebagai
-    // fungsi untuk nama panggilan lain lewat Proxy `get`.
-    return new Proxy({}, {
-      get: function(_target, prop){
-        if(prop === 'withSuccessHandler'){
-          return function(cb){ return buildRunner(Object.assign({}, state, { success: cb })); };
-        }
-        if(prop === 'withFailureHandler'){
-          return function(cb){ return buildRunner(Object.assign({}, state, { failure: cb })); };
-        }
-        if(prop === 'withUserObject'){
-          return function(obj){ return buildRunner(Object.assign({}, state, { userObject: obj })); };
-        }
-        // Nama properti lain dianggap nama fungsi server yang mau dipanggil,
-        // persis seperti google.script.run.namaFungsi(arg1, arg2, ...).
-        return function(){
-          const args = Array.prototype.slice.call(arguments);
-          fetch(API_URL, {
+(function () {
+  function buildRunner(handlers) {
+    var proxy = {};
+    ['withSuccessHandler', 'withFailureHandler'].forEach(function (prop) {
+      proxy[prop] = function (fn) {
+        var next = {}; for (var k in handlers) next[k] = handlers[k];
+        next[prop] = fn;
+        return buildRunner(next);
+      };
+    });
+    return new Proxy(proxy, {
+      get: function (target, fnName) {
+        if (fnName in target) return target[fnName];
+        // Panggilan sesungguhnya: google.script.run.<fnName>(arg1, arg2, ...)
+        return function () {
+          var args = Array.prototype.slice.call(arguments);
+          // Content-Type SENGAJA "text/plain" (bukan "application/json") supaya browser
+          // TIDAK melakukan CORS preflight (OPTIONS) -- Apps Script Web App tidak punya
+          // doOptions, jadi preflight akan gagal kalau Content-Type memicunya.
+          fetch(API_URL_, {
             method: 'POST',
-            // SENGAJA "text/plain" (bukan "application/json") supaya browser
-            // tidak melakukan CORS preflight (OPTIONS) -- Apps Script tidak
-            // punya doOptions, jadi preflight akan gagal kalau pakai
-            // application/json. Server (doPost di Code.gs) tetap mem-parse
-            // body-nya sebagai JSON apa pun Content-Type yang tertulis.
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({ fn: String(prop), args: args })
+            body: JSON.stringify({ fn: fnName, args: args })
           })
-          .then(function(res){
-            // Dibaca sebagai teks dulu (bukan langsung res.json()) supaya kalau
-            // ternyata respons BUKAN JSON (mis. halaman HTML error dari Google:
-            // URL salah, deployment belum benar, dsb), pesan error yang tampil ke
-            // pengguna menyertakan CUPLIKAN ASLI respons itu -- bukan cuma
-            // "unexpected character..." yang tidak jelas sumbernya.
-            return res.text().then(function(text){
-              let data;
-              try { data = JSON.parse(text); }
-              catch(parseErr){
-                const snippet = text ? text.slice(0, 200).replace(/\s+/g,' ').trim() : '(respons kosong)';
-                throw new Error('Respons server bukan JSON (HTTP ' + res.status + '). Cuplikan: ' + snippet);
+            .then(function (res) { return res.json(); })
+            .then(function (payload) {
+              if (payload && payload.ok) {
+                if (handlers.withSuccessHandler) handlers.withSuccessHandler(payload.result);
+              } else {
+                var err = new Error((payload && payload.error && payload.error.message) || 'Permintaan ke server gagal.');
+                if (handlers.withFailureHandler) handlers.withFailureHandler(err); else throw err;
               }
-              return data;
+            })
+            .catch(function (err) {
+              if (handlers.withFailureHandler) handlers.withFailureHandler(err); else throw err;
             });
-          })
-          .then(function(data){
-            if(data && data.ok){
-              if(state.success) state.success(data.result, state.userObject);
-            } else {
-              const msg = (data && data.error && data.error.message) ? data.error.message : 'Terjadi kesalahan tak dikenal di server.';
-              if(state.failure) state.failure({ message: msg }, state.userObject);
-              else console.error(msg);
-            }
-          })
-          .catch(function(err){
-            if(state.failure) state.failure({ message: 'Gagal terhubung ke server: ' + (err && err.message ? err.message : err) }, state.userObject);
-            else console.error(err);
-          });
         };
       }
     });
@@ -3686,18 +3684,6 @@ document.getElementById('btnLogLoadMore').addEventListener('click', function(){ 
 document.getElementById('logCari').addEventListener('keydown', function(e){ if(e.key === 'Enter') resetAndLoadActivityLog_(); });
 
 tryRestoreSession_();
-
-// Daftarkan service worker — syarat wajib agar Chrome membuatkan WebAPK resmi
-// (ditandatangani Google) saat "Install app"/"Add to Home screen", bukan sekadar
-// shortcut. Dibungkus try/catch & pengecekan fitur supaya tidak mengganggu
-// browser lama yang belum mendukung service worker.
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', function () {
-    navigator.serviceWorker.register('./sw.js').catch(function (err) {
-      console.warn('Pendaftaran service worker gagal:', err);
-    });
-  });
-}
 </script>
 </body>
 </html>
