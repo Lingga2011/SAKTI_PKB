@@ -932,7 +932,7 @@
 //
 // GANTI nilai di bawah ini dengan URL deploy Web App Apps Script kamu (yang
 // diakhiri "/exec"):
-const API_URL = 'GANTI_DENGAN_URL_WEB_APP_APPS_SCRIPT/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbwG6vbNqYmwxq5FSvsOL0_nmrLffPeAV45ZClKJ_-5sRbWTT2g4PV5NEUti5dqszccxzg/exec';
 
 (function(){
   function buildRunner(state){
@@ -964,7 +964,22 @@ const API_URL = 'GANTI_DENGAN_URL_WEB_APP_APPS_SCRIPT/exec';
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify({ fn: String(prop), args: args })
           })
-          .then(function(res){ return res.json(); })
+          .then(function(res){
+            // Dibaca sebagai teks dulu (bukan langsung res.json()) supaya kalau
+            // ternyata respons BUKAN JSON (mis. halaman HTML error dari Google:
+            // URL salah, deployment belum benar, dsb), pesan error yang tampil ke
+            // pengguna menyertakan CUPLIKAN ASLI respons itu -- bukan cuma
+            // "unexpected character..." yang tidak jelas sumbernya.
+            return res.text().then(function(text){
+              let data;
+              try { data = JSON.parse(text); }
+              catch(parseErr){
+                const snippet = text ? text.slice(0, 200).replace(/\s+/g,' ').trim() : '(respons kosong)';
+                throw new Error('Respons server bukan JSON (HTTP ' + res.status + '). Cuplikan: ' + snippet);
+              }
+              return data;
+            });
+          })
           .then(function(data){
             if(data && data.ok){
               if(state.success) state.success(data.result, state.userObject);
