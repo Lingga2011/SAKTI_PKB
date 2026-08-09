@@ -20,6 +20,15 @@
 <meta name="apple-mobile-web-app-title" content="SAKTI PKB">
 
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<!-- PERBAIKAN KEAMANAN: referrer-policy dipastikan eksplisit "origin" (bukan dibiarkan
+     default browser) supaya saat halaman ini mengiframe Web App KBMDU, header Referer yang
+     dikirim SELALU berisi origin situs ini (https://lingga2011.github.io), tidak pernah
+     kosong. Ini dibutuhkan oleh skrip anti-clickjacking baru di dalam Index.html KBMDU
+     (mengecek document.referrer) supaya bisa memastikan aplikasi hanya mau ditampilkan kalau
+     benar-benar dimuat dari halaman ini. GitHub Pages tidak mendukung header HTTP kustom
+     (mis. Content-Security-Policy: frame-ancestors) makanya pengamanan tambahan dilakukan
+     lewat kombinasi meta tag ini + skrip di sisi Web App. -->
+<meta name="referrer" content="origin">
 <style>
   html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#0b2545; }
   iframe {
