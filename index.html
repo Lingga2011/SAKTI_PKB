@@ -35,6 +35,8 @@
   .login-box .brand-mark{width:76px;height:76px;display:block;object-fit:contain;margin:0 auto 14px;}
   .login-box h1{font-size:19px;color:var(--navy);margin:0 0 4px;letter-spacing:.01em;text-align:center;}
   .login-box p.sub{font-size:12.5px;color:var(--muted);margin:0 0 22px;text-align:center;line-height:1.5;}
+  .app-credit{font-size:10.5px;color:var(--muted);opacity:.75;text-align:center;line-height:1.5;margin:18px 0 0;}
+  .about-card p{font-size:12.5px;color:var(--muted);line-height:1.6;margin:6px 0 0;}
   .pw-field{position:relative;}
   .pw-field input{padding-right:44px !important;}
   .pw-toggle{position:absolute;right:2px;top:22px;width:36px;height:36px;border:none;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--muted);border-radius:8px;padding:0;}
@@ -574,6 +576,7 @@
       <div class="remember-row"><input type="checkbox" id="loginRemember" checked><label for="loginRemember">Ingat saya di perangkat ini</label></div>
       <button class="btn" id="btnLogin">Masuk</button>
       <div class="err-msg" id="loginErr"></div>
+      <p class="app-credit">Dikembangkan oleh <b>Lingga Dwi Prasetyo</b><br>Staf UPTD PPD Malingping.</p>
     </div>
   </div>
 
@@ -831,6 +834,12 @@
           <div class="field pw-field"><label>Ulangi Password Baru</label><input type="password" id="cpConfirm" autocomplete="new-password"><button type="button" class="pw-toggle" data-target="cpConfirm" aria-label="Tampilkan password"></button></div>
           <div class="err-msg" id="cpErr"></div>
           <button class="btn" id="btnGantiPassword">Simpan Password Baru</button>
+        </div>
+
+        <div class="section-title">Tentang Aplikasi</div>
+        <div class="detail-card about-card">
+          <div class="lbl">SAKTI PKB — Sistem Aksi dan Kolaborasi Tindak Lanjut Informasi Pajak Kendaraan Bermotor</div>
+          <p>Dikembangkan oleh <b>Lingga Dwi Prasetyo</b>.<br>Staf UPTD PPD Malingping.</p>
         </div>
       </div>
 
