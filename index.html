@@ -53,6 +53,33 @@
   .login-box h1{font-size:19px;color:var(--navy);margin:0 0 4px;letter-spacing:.01em;text-align:center;}
   .login-box p.sub{font-size:12.5px;color:var(--muted);margin:0 0 22px;text-align:center;line-height:1.5;}
   .app-credit{font-size:10.5px;color:var(--muted);opacity:.75;text-align:center;line-height:1.5;margin:18px 0 0;}
+
+  /* ---- Ajakan pasang aplikasi (PWA install) di layar login ---- */
+  .install-cta{display:flex;align-items:center;gap:10px;margin:16px 0 4px;padding:11px 13px;background:linear-gradient(120deg,rgba(18,49,99,.07),rgba(201,162,39,.09));border:1px solid rgba(18,49,99,.14);border-radius:12px;cursor:pointer;text-align:left;transition:background-color .15s ease,transform .1s ease;}
+  .install-cta:active{transform:scale(.985);}
+  .install-cta.hide{display:none;}
+  .install-cta .ic{flex:none;width:34px;height:34px;border-radius:9px;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-size:17px;}
+  .install-cta .txt{flex:1;}
+  .install-cta .txt b{display:block;font-size:12.5px;color:var(--navy);font-weight:700;}
+  .install-cta .txt span{display:block;font-size:11px;color:var(--muted);margin-top:1px;}
+  .install-cta .go{flex:none;font-size:11px;font-weight:700;color:var(--navy);background:#fff;border:1px solid rgba(18,49,99,.18);padding:6px 10px;border-radius:8px;}
+
+  /* ---- Modal instruksi pasang (khusus iOS Safari / fallback manual) ---- */
+  .install-modal-backdrop{position:fixed;inset:0;background:rgba(11,37,69,.5);z-index:400;display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s ease;}
+  .install-modal-backdrop.show{opacity:1;pointer-events:auto;}
+  .install-modal{background:var(--card);border-radius:18px 18px 0 0;padding:22px 20px calc(20px + env(safe-area-inset-bottom,0));max-width:440px;width:100%;transform:translateY(100%);transition:transform .25s cubic-bezier(.32,.72,0,1);box-shadow:0 -10px 30px rgba(11,37,69,.25);}
+  .install-modal-backdrop.show .install-modal{transform:translateY(0);}
+  @media (min-width:521px){
+    .install-modal-backdrop{align-items:center;}
+    .install-modal{border-radius:18px;transform:translateY(12px) scale(.98);}
+    .install-modal-backdrop.show .install-modal{transform:translateY(0) scale(1);}
+  }
+  .install-modal h3{margin:0 0 4px;font-size:16px;color:var(--navy);}
+  .install-modal p.sub{margin:0 0 16px;font-size:12px;color:var(--muted);}
+  .install-modal ol{margin:0 0 18px;padding-left:20px;}
+  .install-modal ol li{font-size:13px;color:#1c2430;line-height:1.7;}
+  .install-modal ol li b{color:var(--navy);}
+  .install-modal .btn{margin-top:4px;}
   .about-card p{font-size:12.5px;color:var(--muted);line-height:1.6;margin:6px 0 0;}
   .pw-field{position:relative;}
   .pw-field input{padding-right:44px !important;}
@@ -594,7 +621,22 @@
       <div class="remember-row"><input type="checkbox" id="loginRemember" checked><label for="loginRemember">Ingat saya di perangkat ini</label></div>
       <button class="btn" id="btnLogin">Masuk</button>
       <div class="err-msg" id="loginErr"></div>
+      <div class="install-cta hide" id="installCta" role="button" tabindex="0">
+        <span class="ic" aria-hidden="true">⬇</span>
+        <span class="txt"><b>Pasang Aplikasi SAKTI PKB</b><span>Akses lebih cepat langsung dari layar utama HP</span></span>
+        <span class="go" id="installCtaGo">Pasang</span>
+      </div>
       <p class="app-credit">Dikembangkan oleh <b>Lingga Dwi Prasetyo</b><br>Staf UPTD PPD Malingping.</p>
+    </div>
+  </div>
+
+  <!-- ===== MODAL INSTRUKSI PASANG APLIKASI (iOS Safari / fallback manual) ===== -->
+  <div class="install-modal-backdrop" id="installModalBackdrop">
+    <div class="install-modal">
+      <h3 id="installModalTitle">Pasang Aplikasi</h3>
+      <p class="sub">Ikuti langkah berikut supaya SAKTI PKB muncul sebagai ikon aplikasi di layar utama HP Anda.</p>
+      <ol id="installModalSteps"></ol>
+      <button class="btn secondary" id="installModalClose">Tutup</button>
     </div>
   </div>
 
@@ -3919,6 +3961,87 @@ if ('serviceWorker' in navigator) {
     });
   });
 }
+
+// ===== Ajakan pasang aplikasi (PWA install) =====
+// Tujuan: banyak pengguna tidak tahu situs ini bisa "diinstall" jadi ikon di layar
+// utama HP (WebAPK di Android/Chrome, atau "Add to Home Screen" di iOS Safari).
+// Banner ini HANYA tampil di layar login, HANYA kalau aplikasi belum terpasang,
+// dan tidak pernah mengganggu alur login itu sendiri.
+(function () {
+  var isStandalone = window.matchMedia('(display-mode: standalone)').matches
+    || window.navigator.standalone === true; // iOS Safari
+  if (isStandalone) return; // sudah terpasang, tidak perlu ajakan apa pun
+
+  var cta = document.getElementById('installCta');
+  var ctaGo = document.getElementById('installCtaGo');
+  var modalBackdrop = document.getElementById('installModalBackdrop');
+  var modalTitle = document.getElementById('installModalTitle');
+  var modalSteps = document.getElementById('installModalSteps');
+  var modalClose = document.getElementById('installModalClose');
+  var deferredPrompt = null;
+
+  var ua = navigator.userAgent || '';
+  var isIOS = /iPad|iPhone|iPod/.test(ua) || (ua.includes('Macintosh') && 'ontouchend' in document);
+  var isSafari = isIOS && /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua);
+
+  function openInstructionsModal_() {
+    if (isIOS) {
+      modalTitle.textContent = 'Pasang di iPhone/iPad';
+      modalSteps.innerHTML =
+        '<li>Buka halaman ini lewat <b>Safari</b> (bukan aplikasi lain).</li>' +
+        '<li>Ketuk tombol <b>Bagikan</b> (ikon kotak dengan panah ke atas) di bar bawah/atas.</li>' +
+        '<li>Pilih <b>"Tambah ke Layar Utama"</b> (Add to Home Screen), lalu ketuk <b>Tambah</b>.</li>';
+    } else {
+      modalTitle.textContent = 'Pasang Aplikasi';
+      modalSteps.innerHTML =
+        '<li>Ketuk menu titik tiga (⋮) di pojok kanan atas browser.</li>' +
+        '<li>Pilih <b>"Instal aplikasi"</b> atau <b>"Tambahkan ke layar Utama"</b>.</li>' +
+        '<li>Ikuti konfirmasi yang muncul untuk memasang.</li>';
+    }
+    modalBackdrop.classList.add('show');
+  }
+  function closeInstructionsModal_() {
+    modalBackdrop.classList.remove('show');
+  }
+
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    deferredPrompt = e;
+    if (cta) cta.classList.remove('hide');
+  });
+
+  window.addEventListener('appinstalled', function () {
+    deferredPrompt = null;
+    if (cta) cta.classList.add('hide');
+    closeInstructionsModal_();
+  });
+
+  // iOS Safari tidak pernah memicu beforeinstallprompt, jadi tampilkan ajakan
+  // manual dari awal khusus untuk kombinasi ini.
+  if (isIOS && isSafari && cta) {
+    cta.classList.remove('hide');
+  }
+
+  if (cta) {
+    cta.addEventListener('click', async function () {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        try { await deferredPrompt.userChoice; } catch (e) {}
+        deferredPrompt = null;
+        cta.classList.add('hide');
+      } else {
+        openInstructionsModal_();
+      }
+    });
+    cta.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cta.click(); }
+    });
+  }
+  if (modalClose) modalClose.addEventListener('click', closeInstructionsModal_);
+  if (modalBackdrop) modalBackdrop.addEventListener('click', function (e) {
+    if (e.target === modalBackdrop) closeInstructionsModal_();
+  });
+})();
 </script>
 </body>
 </html>
