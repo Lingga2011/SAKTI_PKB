@@ -6,7 +6,7 @@
 // (script.google.com) supaya data selalu real-time dan tidak ada risiko data basi
 // atau kredensial ketinggalan cache.
 
-const CACHE_NAME = 'sakti-pkb-shell-v2';
+const CACHE_NAME = 'sakti-pkb-shell-v1';
 const APP_SHELL = [
   './',
   './index.html',
@@ -46,24 +46,16 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Strategi: stale-while-revalidate.
-  // Cache (kalau ada) langsung dipakai supaya app-shell (index.html ~382KB)
-  // tampil instan meski sinyal lemah/lambat di lapangan. Bersamaan dengan itu,
-  // request tetap dikirim ke jaringan di background untuk mengambil versi
-  // terbaru dan menyimpannya ke cache — jadi buka berikutnya sudah versi baru.
-  // Kalau tidak ada cache sama sekali (mis. pertama kali install), tetap
-  // tunggu jaringan seperti biasa.
+  // Strategi: network-first, fallback ke cache kalau offline.
+  // Ini penting supaya pengguna selalu dapat versi terbaru index.html saat
+  // online, dan cache hanya jadi cadangan saat benar-benar tidak ada koneksi.
   event.respondWith(
-    caches.open(CACHE_NAME).then((cache) =>
-      cache.match(req).then((cached) => {
-        const networkFetch = fetch(req)
-          .then((res) => {
-            cache.put(req, res.clone());
-            return res;
-          })
-          .catch(() => cached);
-        return cached || networkFetch;
+    fetch(req)
+      .then((res) => {
+        const resClone = res.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(req, resClone));
+        return res;
       })
-    )
+      .catch(() => caches.match(req))
   );
 });

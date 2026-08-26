@@ -3,6 +3,13 @@
 <head>
 <base target="_top">
 <meta charset="utf-8">
+<!-- PERBAIKAN RESPONSIF: sebelumnya tidak ada meta viewport sama sekali di file ini. Selama
+     Index.html dibuka lewat doGet() (HtmlService), Apps Script menambahkan viewport secara
+     otomatis lewat addMetaTag() di Code.gs — tapi begitu file INI di-hosting sendiri sebagai
+     file statis (GitHub Pages/Firebase Hosting dkk, lihat PANDUAN_DEPLOY_KBMDU.md & shim
+     fetch() di bawah), addMetaTag() itu TIDAK PERNAH ikut terpasang, sehingga di HP halaman
+     akan tampil ter-zoom-out/tidak mobile-friendly walau CSS-nya sudah responsif. Viewport ini
+     sekarang ditulis langsung di sini supaya selalu ikut terpasang di kedua cara deploy. -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>SAKTI PKB</title>
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
@@ -15,10 +22,20 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="SAKTI PKB">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<!-- PERBAIKAN PERFORMA: keempat script pihak ketiga ini (peta, Excel, PDF) tidak dipakai
+     sampai pengguna login dan membuka fitur terkait (peta lokasi, export laporan) — bukan
+     saat halaman pertama kali dibuka (layar login). Sebelumnya dimuat tanpa "defer" di
+     <head>, sehingga browser WAJIB mengunduh & menjalankan semuanya dulu sebelum sempat
+     merender apa pun ke layar — di jaringan seluler yang lambat ini bisa menunda layar
+     login tampil beberapa detik. "defer" membuat browser tetap mengunduhnya di background
+     tapi merender HTML & CSS dulu, dan tetap menjalankan script-nya sesuai urutan sebelum
+     event DOMContentLoaded — aman karena semua pemanggilan L./XLSX./jsPDF di file ini ada
+     di dalam fungsi yang baru dipanggil belakangan (event klik dsb.), bukan langsung di
+     top-level saat parsing. -->
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <style>
   :root{
     --navy:#0b2545; --navy2:#123163; --gold:#c9a227; --bg:#f4f5f7; --card:#ffffff;
@@ -26,7 +43,7 @@
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;width:100%;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1c2430;}
-  #app{max-width:520px;margin:0 auto;min-height:100vh;width:100%;background:var(--bg);display:flex;flex-direction:column;}
+  #app{width:100%;min-height:100vh;background:var(--bg);display:flex;flex-direction:column;}
   .hide{display:none !important;}
 
   /* ---- Login ---- */
@@ -82,10 +99,10 @@
   #topbar .who{font-size:10.5px;opacity:.75;}
   #topbar .logout{font-size:11px;background:rgba(255,255,255,.15);padding:6px 10px;border-radius:7px;cursor:pointer;white-space:nowrap;}
 
-  #main{flex:1;overflow-y:auto;padding:14px 14px 90px;}
+  #main{flex:1;overflow-y:auto;padding:14px 14px 90px;contain:layout style;will-change:scroll-position;}
 
   /* ---- Bottom nav ---- */
-  #bottomnav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:520px;background:#fff;border-top:1px solid var(--border);display:flex;z-index:20;padding:6px 6px 4px;gap:2px;}
+  #bottomnav{position:fixed;bottom:0;left:0;right:0;width:100%;background:#fff;border-top:1px solid var(--border);display:flex;z-index:20;padding:6px 6px 4px;gap:2px;}
   #bottomnav .nav-item{position:relative;flex:1;text-align:center;padding:7px 4px 6px;font-size:10.5px;color:var(--muted);cursor:pointer;border-radius:12px;transition:background-color .18s ease,color .18s ease;}
   #bottomnav .nav-item .ic{font-size:19px;display:block;margin-bottom:2px;transition:transform .18s ease;}
   #bottomnav .nav-item.active{color:var(--navy);font-weight:700;background:rgba(18,49,99,.09);}
@@ -93,7 +110,8 @@
   #bottomnav .nav-item.active::before{content:"";position:absolute;top:-6px;left:50%;transform:translateX(-50%);width:26px;height:3px;border-radius:0 0 3px 3px;background:linear-gradient(120deg,var(--navy),var(--navy2));}
 
   /* ---- Dashboard ---- */
-  .stat-cards{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;}
+  .stat-cards{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;contain:content;}
+  .veh-card{contain:layout style paint;content-visibility:auto;contain-intrinsic-size:0 120px;}
   .stat-card{position:relative;background:var(--card);border-radius:12px;padding:14px 54px 14px 14px;box-shadow:0 1px 4px rgba(0,0,0,.05);border:1px solid rgba(11,37,69,.04);}
   .stat-card .num{font-size:22px;font-weight:800;color:var(--navy);}
   .stat-card .lbl{font-size:11px;color:var(--muted);margin-top:2px;}
@@ -223,7 +241,7 @@
      dan TANPA tombol konfirmasi: tap opsi = pilih + sheet langsung menutup sendiri. */
   .csel-sheet-backdrop{position:fixed;inset:0;background:rgba(11,37,69,.45);z-index:95;opacity:0;pointer-events:none;transition:opacity .2s ease;}
   .csel-sheet-backdrop.show{opacity:1;pointer-events:auto;}
-  .csel-sheet{position:fixed;left:0;right:0;bottom:0;max-width:520px;margin:0 auto;background:var(--card);border-radius:18px 18px 0 0;box-shadow:0 -10px 30px rgba(11,37,69,.25);z-index:96;max-height:72vh;display:flex;flex-direction:column;transform:translateY(100%);transition:transform .25s cubic-bezier(.32,.72,0,1);padding-bottom:env(safe-area-inset-bottom,0);}
+  .csel-sheet{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-radius:18px 18px 0 0;box-shadow:0 -10px 30px rgba(11,37,69,.25);z-index:96;max-height:72vh;display:flex;flex-direction:column;transform:translateY(100%);transition:transform .25s cubic-bezier(.32,.72,0,1);padding-bottom:env(safe-area-inset-bottom,0);}
   .csel-sheet.show{transform:translateY(0);}
   .csel-sheet-handle{width:36px;height:4px;background:var(--border);border-radius:3px;margin:10px auto 2px;flex:0 0 auto;}
   .csel-sheet-title{font-size:13px;font-weight:700;color:var(--navy);text-align:center;padding:6px 16px 12px;border-bottom:1px solid var(--border);flex:0 0 auto;}
@@ -576,7 +594,7 @@
       <div class="remember-row"><input type="checkbox" id="loginRemember" checked><label for="loginRemember">Ingat saya di perangkat ini</label></div>
       <button class="btn" id="btnLogin">Masuk</button>
       <div class="err-msg" id="loginErr"></div>
-      <p class="app-credit">Dikembangkan oleh <b>Lingga Dwi Prasetyo</b><br>Staf UPTD PPD Malingping<br>Tahun 2026</p>
+      <p class="app-credit">Dikembangkan oleh <b>Lingga Dwi Prasetyo</b><br>Staf UPTD PPD Malingping.</p>
     </div>
   </div>
 
@@ -647,6 +665,9 @@
           <select id="filterKec"><option value="">Semua Kecamatan</option></select>
           <select id="filterDesa"><option value="">Semua Desa</option></select>
         </div>
+        <div class="report-toolbar">
+          <button type="button" class="btn-elegant tone-primary" id="btnDownloadList"><span class="ico">📥</span><span class="btn-label" id="btnDownloadListLabel">Unduh Daftar (Semua)</span></button>
+        </div>
         <div id="vehList"></div>
         <button class="btn secondary load-more hide" id="btnLoadMore">Muat Lebih Banyak</button>
         <div class="empty-hint hide" id="listEmptyHint">Tidak ada data yang cocok.</div>
@@ -657,6 +678,7 @@
         <div class="report-toolbar">
           <button type="button" class="btn-elegant tone-primary" id="btnExportExcel"><span class="ico">📊</span><span class="btn-label">Unduh Excel</span></button>
           <button type="button" class="btn-elegant tone-outline" id="btnExportPdf"><span class="ico">📄</span><span class="btn-label">Unduh PDF</span></button>
+          <button type="button" class="btn-elegant tone-outline" id="btnCetakKecamatan"><span class="ico">🖨️</span><span class="btn-label">Cetak Per Kecamatan</span></button>
         </div>
         <div class="report-meta" id="reportMeta">Memuat laporan...</div>
         <div class="report-table-wrap">
@@ -839,7 +861,7 @@
         <div class="section-title">Tentang Aplikasi</div>
         <div class="detail-card about-card">
           <div class="lbl">SAKTI PKB — Sistem Aksi dan Kolaborasi Tindak Lanjut Informasi Pajak Kendaraan Bermotor</div>
-          <p>Dikembangkan oleh <b>Lingga Dwi Prasetyo</b>.<br>Staf UPTD PPD Malingping<br>Tahun 2026</p>
+          <p>Dikembangkan oleh <b>Lingga Dwi Prasetyo</b>.<br>Staf UPTD PPD Malingping.</p>
         </div>
       </div>
 
@@ -965,81 +987,62 @@
 
 <script>
 // ============================================================================
-//  SHIM google.script.run BERBASIS fetch() — SOLUSI PERMANEN ISU LOKASI/KAMERA
+//  SHIM google.script.run BERBASIS fetch() -- WAJIB SAAT FILE INI DI-HOSTING SENDIRI
 // ============================================================================
-// Halaman ini sekarang di-hosting sebagai file statis biasa (BUKAN lagi dibuka
-// lewat URL .../exec Apps Script), supaya jadi halaman top-level sungguhan dan
-// geolocation/kamera browser tidak lagi diblok oleh iframe sandbox internal Apps
-// Script (lihat catatan panjang di Code.gs bagian "API JSON UNTUK FRONTEND").
+// Kenapa perlu: Code.gs (doPost + API_WHITELIST_) sudah dibangun sebagai API JSON supaya
+// Index.html ini bisa dibuka sebagai halaman statis top-level (GitHub Pages, Firebase
+// Hosting, dst) -- ini WAJIB dilakukan supaya geolocation & kamera berfungsi normal,
+// karena membuka file ini lewat URL .../exec bawaan Apps Script SELALU merendernya di
+// dalam iframe sandbox milik Google yang memblokir izin lokasi & kamera secara permanen
+// (lihat catatan panjang di atas fungsi doPost() di Code.gs).
 //
-// Karena seluruh kode di bawah ini masih memanggil google.script.run(...) apa
-// adanya (pola aslinya), shim ini membuat ulang API tersebut memakai fetch() ke
-// endpoint Apps Script (dipakai sebagai API JSON murni), supaya TIDAK PERLU
-// menulis ulang setiap pemanggilan satu per satu.
+// Supaya seluruh 29 titik pemanggilan google.script.run.withSuccessHandler(...)... yang
+// sudah ada di file ini TIDAK PERLU ditulis ulang satu per satu, shim di bawah ini membuat
+// ulang API "google.script.run" tiruan yang menerjemahkan tiap pemanggilan jadi satu
+// fetch() POST ke endpoint Code.gs (doPost), dengan body {fn:"namaFungsi", args:[...]}.
 //
-// GANTI nilai di bawah ini dengan URL deploy Web App Apps Script kamu (yang
-// diakhiri "/exec"):
-const API_URL = 'https://script.google.com/macros/s/AKfycbwG6vbNqYmwxq5FSvsOL0_nmrLffPeAV45ZClKJ_-5sRbWTT2g4PV5NEUti5dqszccxzg/exec';
+// WAJIB DIISI sebelum deploy: ganti nilai API_URL_ di bawah dengan URL Web App hasil
+// "Deploy > New deployment > Web app" dari proyek Apps Script (Code.gs) milik Anda --
+// lihat PANDUAN_DEPLOY_KBMDU.md bagian "Hosting Index.html sebagai halaman statis".
+// ============================================================================
+var API_URL_ = 'https://script.google.com/macros/s/AKfycbwG6vbNqYmwxq5FSvsOL0_nmrLffPeAV45ZClKJ_-5sRbWTT2g4PV5NEUti5dqszccxzg/exec';
 
-(function(){
-  function buildRunner(state){
-    // Objek "kosong" yang bisa: (a) diakses propertinya untuk chaining
-    // (withSuccessHandler/withFailureHandler), atau (b) dipakai sebagai
-    // fungsi untuk nama panggilan lain lewat Proxy `get`.
-    return new Proxy({}, {
-      get: function(_target, prop){
-        if(prop === 'withSuccessHandler'){
-          return function(cb){ return buildRunner(Object.assign({}, state, { success: cb })); };
-        }
-        if(prop === 'withFailureHandler'){
-          return function(cb){ return buildRunner(Object.assign({}, state, { failure: cb })); };
-        }
-        if(prop === 'withUserObject'){
-          return function(obj){ return buildRunner(Object.assign({}, state, { userObject: obj })); };
-        }
-        // Nama properti lain dianggap nama fungsi server yang mau dipanggil,
-        // persis seperti google.script.run.namaFungsi(arg1, arg2, ...).
-        return function(){
-          const args = Array.prototype.slice.call(arguments);
-          fetch(API_URL, {
+(function () {
+  function buildRunner(handlers) {
+    var proxy = {};
+    ['withSuccessHandler', 'withFailureHandler'].forEach(function (prop) {
+      proxy[prop] = function (fn) {
+        var next = {}; for (var k in handlers) next[k] = handlers[k];
+        next[prop] = fn;
+        return buildRunner(next);
+      };
+    });
+    return new Proxy(proxy, {
+      get: function (target, fnName) {
+        if (fnName in target) return target[fnName];
+        // Panggilan sesungguhnya: google.script.run.<fnName>(arg1, arg2, ...)
+        return function () {
+          var args = Array.prototype.slice.call(arguments);
+          // Content-Type SENGAJA "text/plain" (bukan "application/json") supaya browser
+          // TIDAK melakukan CORS preflight (OPTIONS) -- Apps Script Web App tidak punya
+          // doOptions, jadi preflight akan gagal kalau Content-Type memicunya.
+          fetch(API_URL_, {
             method: 'POST',
-            // SENGAJA "text/plain" (bukan "application/json") supaya browser
-            // tidak melakukan CORS preflight (OPTIONS) -- Apps Script tidak
-            // punya doOptions, jadi preflight akan gagal kalau pakai
-            // application/json. Server (doPost di Code.gs) tetap mem-parse
-            // body-nya sebagai JSON apa pun Content-Type yang tertulis.
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({ fn: String(prop), args: args })
+            body: JSON.stringify({ fn: fnName, args: args })
           })
-          .then(function(res){
-            // Dibaca sebagai teks dulu (bukan langsung res.json()) supaya kalau
-            // ternyata respons BUKAN JSON (mis. halaman HTML error dari Google:
-            // URL salah, deployment belum benar, dsb), pesan error yang tampil ke
-            // pengguna menyertakan CUPLIKAN ASLI respons itu -- bukan cuma
-            // "unexpected character..." yang tidak jelas sumbernya.
-            return res.text().then(function(text){
-              let data;
-              try { data = JSON.parse(text); }
-              catch(parseErr){
-                const snippet = text ? text.slice(0, 200).replace(/\s+/g,' ').trim() : '(respons kosong)';
-                throw new Error('Respons server bukan JSON (HTTP ' + res.status + '). Cuplikan: ' + snippet);
+            .then(function (res) { return res.json(); })
+            .then(function (payload) {
+              if (payload && payload.ok) {
+                if (handlers.withSuccessHandler) handlers.withSuccessHandler(payload.result);
+              } else {
+                var err = new Error((payload && payload.error && payload.error.message) || 'Permintaan ke server gagal.');
+                if (handlers.withFailureHandler) handlers.withFailureHandler(err); else throw err;
               }
-              return data;
+            })
+            .catch(function (err) {
+              if (handlers.withFailureHandler) handlers.withFailureHandler(err); else throw err;
             });
-          })
-          .then(function(data){
-            if(data && data.ok){
-              if(state.success) state.success(data.result, state.userObject);
-            } else {
-              const msg = (data && data.error && data.error.message) ? data.error.message : 'Terjadi kesalahan tak dikenal di server.';
-              if(state.failure) state.failure({ message: msg }, state.userObject);
-              else console.error(msg);
-            }
-          })
-          .catch(function(err){
-            if(state.failure) state.failure({ message: 'Gagal terhubung ke server: ' + (err && err.message ? err.message : err) }, state.userObject);
-            else console.error(err);
-          });
         };
       }
     });
@@ -2014,6 +2017,67 @@ document.getElementById('btnExportPdf').addEventListener('click', function(){
   doc.save(reportFileBaseName_() + '.pdf');
 });
 
+// Versi ringkas laporan: HANYA baris per Kecamatan (totalnya sudah terjumlah dari
+// seluruh Desa/Petugas di kecamatan itu, lihat buildKecamatanGroups_), TANPA baris
+// rincian per Desa -- dipakai oleh tombol "Cetak Per Kecamatan" di bawah.
+function reportKecExportRows_(){
+  const groups = buildKecamatanGroups_(REPORT_ROWS_);
+  const rows = groups.map(function(g){
+    return [g.no, g.kecamatan,
+      g.totals.r2_unit, g.totals.r2_pajak, g.totals.r4_unit, g.totals.r4_pajak,
+      g.totals.total_unit, g.totals.total_pajak,
+      g.totals.sudah_ditelusuri_unit, g.totals.sudah_ditelusuri_pajak,
+      g.totals.belum_ditelusuri_unit, g.totals.belum_ditelusuri_pajak,
+      g.totals.sudah_bayar_unit, g.totals.sudah_bayar_pajak,
+      g.totals.belum_bayar_unit, g.totals.belum_bayar_pajak];
+  });
+  const totals = { r2_unit:0, r2_pajak:0, r4_unit:0, r4_pajak:0, total_unit:0, total_pajak:0,
+    sudah_ditelusuri_unit:0, sudah_ditelusuri_pajak:0, sudah_bayar_unit:0, sudah_bayar_pajak:0,
+    belum_bayar_unit:0, belum_bayar_pajak:0, belum_ditelusuri_unit:0, belum_ditelusuri_pajak:0 };
+  groups.forEach(function(g){ Object.keys(totals).forEach(function(k){ totals[k] += g.totals[k]; }); });
+  rows.push(['', 'TOTAL', totals.r2_unit, totals.r2_pajak, totals.r4_unit, totals.r4_pajak,
+    totals.total_unit, totals.total_pajak,
+    totals.sudah_ditelusuri_unit, totals.sudah_ditelusuri_pajak, totals.belum_ditelusuri_unit, totals.belum_ditelusuri_pajak,
+    totals.sudah_bayar_unit, totals.sudah_bayar_pajak, totals.belum_bayar_unit, totals.belum_bayar_pajak]);
+  return rows;
+}
+function reportKecFileBaseName_(){
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2,'0');
+  return 'Laporan_Per_Kecamatan_KBMDU_' + d.getFullYear() + pad(d.getMonth()+1) + pad(d.getDate());
+}
+document.getElementById('btnCetakKecamatan').addEventListener('click', function(){
+  if(!REPORT_ROWS_.length){ toast('Belum ada data untuk dicetak.'); return; }
+  if(typeof window.jspdf === 'undefined'){ toast('Modul PDF belum termuat, coba lagi sesaat lagi.'); return; }
+  const doc = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+  doc.setFontSize(12);
+  doc.text('Laporan Rekap Per Kecamatan - KBMDU', 30, 26);
+  const head = [
+    [
+      { content: 'No', rowSpan: 2 },
+      { content: 'Kecamatan', rowSpan: 2 },
+      { content: 'Jumlah Data R2', colSpan: 2 },
+      { content: 'Jumlah Data R4', colSpan: 2 },
+      { content: 'Total Data', colSpan: 2 },
+      { content: 'Sudah Ditelusuri', colSpan: 2 },
+      { content: 'Belum Ditelusuri', colSpan: 2 },
+      { content: 'Sudah Bayar', colSpan: 2 },
+      { content: 'Belum Bayar', colSpan: 2 }
+    ],
+    ['Unit','Pajak','Unit','Pajak','Unit','Pajak','Unit','Pajak','Unit','Pajak','Unit','Pajak','Unit','Pajak']
+  ];
+  doc.autoTable({
+    head: head,
+    body: reportKecExportRows_().map(function(r){ return r.map(function(v){ return typeof v === 'number' ? formatAngka_(v) : v; }); }),
+    startY: 36,
+    styles: { fontSize: 8, cellPadding: 4 },
+    headStyles: { fillColor: [11,37,69], halign: 'center', valign: 'middle' },
+    bodyStyles: { halign: 'right' },
+    columnStyles: { 0:{halign:'center'}, 1:{halign:'left'} }
+  });
+  doc.save(reportKecFileBaseName_() + '.pdf');
+});
+
 // ---------- FILTER OPTIONS ----------
 // Hilangkan spasi biasa DI SEMUA POSISI (bukan cuma trim ujung) + karakter spasi "siluman"
 // (non-breaking space, zero-width space, dll) yang kadang ikut ke-input di kolom PERIODE dari
@@ -2121,19 +2185,30 @@ document.querySelectorAll('#listStatusTabs .tab-btn').forEach(function(el){
     el.classList.add('active');
     listStatusFilter = el.dataset.status || '';
     listBayarFilter = el.dataset.bayar || '';
+    updateDownloadListLabel_();
     resetAndLoadList();
   });
 });
+// Label kategori aktif (Semua/Belum Ditelusuri/Sudah Ditelusuri/Sudah Bayar/Belum Bayar) --
+// SAMA PERSIS dengan tab yang sedang dipilih user, dipakai untuk label tombol unduh & nama file.
+function listCategoryLabel_(){
+  if(listBayarFilter === 'SUDAH BAYAR') return 'Sudah Bayar';
+  if(listBayarFilter === 'BELUM BAYAR') return 'Belum Bayar';
+  if(listStatusFilter === 'SUDAH DITELUSURI') return 'Sudah Ditelusuri';
+  if(listStatusFilter === 'BELUM DITELUSURI') return 'Belum Ditelusuri';
+  return 'Semua';
+}
+function updateDownloadListLabel_(){
+  document.getElementById('btnDownloadListLabel').textContent = 'Unduh Daftar (' + listCategoryLabel_() + ')';
+}
 
 /** Render halaman pertama (dari cache ATAU dari hasil server) ke daftar — mengganti isi #vehList. */
 function renderFirstPage_(res){
-  const wrap = document.getElementById('vehList');
-  wrap.innerHTML = '';
-  res.rows.forEach(function(v){ wrap.appendChild(buildVehCard(v, 'list')); });
+  renderVehListHtml_(res.rows);
   listState.offset = res.rows.length;
   listState.total = res.total;
-  const hasMore = listState.offset < listState.total;
-  const btn = document.getElementById('btnLoadMore');
+  var hasMore = listState.offset < listState.total;
+  var btn = document.getElementById('btnLoadMore');
   btn.classList.toggle('hide', !hasMore);
   btn.disabled = false; btn.textContent = 'Muat Lebih Banyak';
   document.getElementById('listEmptyHint').classList.toggle('hide', res.total > 0);
@@ -2187,21 +2262,23 @@ function resetAndLoadList(){
     fetchFirstPage_(key, f, false, true);
   }
 }
+
 function loadListPage(){
   if(listState.loading) return;
   listState.loading = true;
-  const btn = document.getElementById('btnLoadMore');
+  var btn = document.getElementById('btnLoadMore');
   btn.disabled = true; btn.innerHTML = '<span class="spinner" style="border-color:rgba(11,37,69,.25);border-top-color:var(--navy);"></span>Memuat...';
   google.script.run
     .withSuccessHandler(function(res){
       listState.loading = false;
       listState.total = res.total;
-      const wrap = document.getElementById('vehList');
-      res.rows.forEach(function(v){ wrap.appendChild(buildVehCard(v, 'list')); });
+      var html = '';
+      for(var i=0;i<res.rows.length;i++){ html += vehCardHtml_(res.rows[i], 'list'); }
+      document.getElementById('vehList').insertAdjacentHTML('beforeend', html);
       listState.offset += res.rows.length;
-      const hasMore = listState.offset < listState.total;
+      var hasMore = listState.offset < listState.total;
       btn.classList.toggle('hide', !hasMore);
-      btn.disabled = false; btn.textContent = 'Muat Lebih Banyak ↓';
+      btn.disabled = false; btn.textContent = 'Muat Lebih Banyak \u2193';
       document.getElementById('listEmptyHint').classList.toggle('hide', listState.total > 0);
       if(res.counts){
         document.getElementById('listSemuaN').textContent = formatAngka_(res.counts.semua);
@@ -2213,32 +2290,84 @@ function loadListPage(){
     })
     .withFailureHandler(function(err){
       listState.loading = false;
+      btn.disabled = false; btn.textContent = 'Muat Lebih Banyak \u2193';
       toast('Gagal memuat daftar: ' + (err && err.message ? err.message : err));
     })
     .getKendaraanList(currentFilter(listState.offset), CUR_USER.token);
 }
-document.getElementById('btnLoadMore').addEventListener('click', loadListPage);
 
-function buildVehCard(v, returnScreen){
-  const div = document.createElement('div');
-  div.className = 'veh-card';
-  const sudah = v.status_penelusuran === 'SUDAH DITELUSURI';
-  // PERBAIKAN KEAMANAN: field-field ini (nopol/nama/kecamatan/desa/jenis) sebelumnya ditaruh
-  // langsung ke innerHTML TANPA escaping -- beda dengan bagian "Kelola Akun" & "Laporan
-  // Rekap" yang sudah lebih dulu memakai escapeHtml_()/escReport_(). Datanya memang biasanya
-  // berasal dari impor Excel admin (bukan isian bebas petugas), tapi kalau kebetulan ada
-  // karakter <, >, atau & di data (nama jalan, dsb), tampilan bisa rusak -- dan kalau sampai
-  // ada data tak terduga yang lolos masuk, ini jadi celah XSS tersimpan. Sekarang diseragamkan
-  // memakai escapeHtml_() seperti bagian lain aplikasi.
-  div.innerHTML = '<div class="top-row">'
+// ---- Unduh Daftar Kendaraan (Excel) berdasarkan kategori/tab yang sedang aktif ----
+// Filter yang dipakai SAMA PERSIS dengan yang sedang tampil di layar (tab + pencarian +
+// kecamatan/desa/periode) -- lewat getKendaraanExport (versi tanpa pagination dari
+// getKendaraanList) supaya isi file unduhan selalu cocok dengan apa yang user lihat.
+function downloadListRowsToExcel_(rows, categoryLabel){
+  var header = ['No','Nopol','Nama','Alamat','Kecamatan','Desa','Jenis','Merek','Model','Tahun',
+    'Periode','Status Penelusuran','Tgl Penelusuran','Status Bayar','Nominal PKB','Tgl Akhir PKB','Petugas'];
+  var aoa = [header];
+  rows.forEach(function(r, i){
+    aoa.push([i+1, r.nopol, r.nama, r.alamat, r.kecamatan, r.desa, r.jenis, r.merek, r.model, r.tahun,
+      r.periode, r.status_penelusuran, r.tgl_penelusuran, r.status_bayar, r.nominal_pkb, r.tgl_akhir_pkb, r.petugas]);
+  });
+  var ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{wch:5},{wch:14},{wch:20},{wch:24},{wch:16},{wch:16},{wch:8},{wch:12},{wch:12},{wch:8},
+    {wch:10},{wch:16},{wch:12},{wch:14},{wch:12},{wch:12},{wch:16}];
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Daftar Kendaraan');
+  var d = new Date();
+  var pad = function(n){ return String(n).padStart(2,'0'); };
+  var safeLabel = categoryLabel.replace(/\s+/g, '_');
+  var fname = 'Daftar_Kendaraan_' + safeLabel + '_' + d.getFullYear() + pad(d.getMonth()+1) + pad(d.getDate()) + '.xlsx';
+  XLSX.writeFile(wb, fname);
+}
+document.getElementById('btnDownloadList').addEventListener('click', function(){
+  if(typeof XLSX === 'undefined'){ toast('Modul Excel belum termuat, coba lagi sesaat lagi.'); return; }
+  var btn = this;
+  var labelEl = document.getElementById('btnDownloadListLabel');
+  var origLabel = labelEl.textContent;
+  btn.disabled = true;
+  labelEl.textContent = 'Menyiapkan...';
+  google.script.run
+    .withSuccessHandler(function(res){
+      btn.disabled = false;
+      labelEl.textContent = origLabel;
+      var rows = (res && res.rows) || [];
+      if(!rows.length){ toast('Tidak ada data untuk kategori ini.'); return; }
+      downloadListRowsToExcel_(rows, listCategoryLabel_());
+      if(res.truncated){ toast('Data terlalu banyak, unduhan dibatasi ' + rows.length + ' baris pertama.'); }
+    })
+    .withFailureHandler(function(err){
+      btn.disabled = false;
+      labelEl.textContent = origLabel;
+      toast('Gagal menyiapkan unduhan: ' + (err && err.message ? err.message : err));
+    })
+    .getKendaraanExport(currentFilter(0), CUR_USER.token);
+});
+
+// ---- Event delegation untuk daftar kendaraan (1 listener, bukan 1 per kartu) ----
+document.getElementById('vehList').addEventListener('click', function(e){
+  var card = e.target.closest('.veh-card');
+  if(!card || !card.dataset.nopol) return;
+  openDetail(card.dataset.nopol, card.dataset.returnScreen || 'list');
+});
+
+/** Bangun HTML satu kartu kendaraan sebagai string — TANPA event listener sendiri. */
+function vehCardHtml_(v, returnScreen){
+  var sudah = v.status_penelusuran === 'SUDAH DITELUSURI';
+  return '<div class="veh-card" data-nopol="' + escapeHtml_(v.nopol) + '" data-return-screen="' + escapeHtml_(returnScreen) + '">'
+    + '<div class="top-row">'
     + '<div><div class="nopol">'+escapeHtml_(v.nopol)+'</div><div class="nama">'+escapeHtml_(v.nama)+'</div></div>'
     + '<div><span class="badge '+(sudah?'sudah':'belum')+'">'+(sudah?'Sudah':'Belum')+'</span>'
     + (v.status_bayar==='SUDAH BAYAR' ? '<span class="badge2">Bayar</span>' : '') + '</div>'
     + '</div>'
-    + '<div class="loc">'+escapeHtml_(v.kecamatan)+' • '+escapeHtml_(v.desa)+' • '+escapeHtml_(v.jenis)+'</div>'
-    + '<div class="nominal">'+formatAngka_(v.nominal_pkb)+'</div>';
-  div.addEventListener('click', function(){ openDetail(v.nopol, returnScreen); });
-  return div;
+    + '<div class="loc">'+escapeHtml_(v.kecamatan)+' \u2022 '+escapeHtml_(v.desa)+' \u2022 '+escapeHtml_(v.jenis)+'</div>'
+    + '<div class="nominal">'+formatAngka_(v.nominal_pkb)+'</div>'
+    + '</div>';
+}
+/** Bangun seluruh HTML daftar kendaraan sekaligus, set innerHTML SATU KALI. */
+function renderVehListHtml_(rows){
+  var html = '';
+  for(var i=0;i<rows.length;i++){ html += vehCardHtml_(rows[i], 'list'); }
+  document.getElementById('vehList').innerHTML = html;
 }
 
 // ---------- PETA LOKASI (Leaflet) ----------
