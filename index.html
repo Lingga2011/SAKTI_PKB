@@ -1568,7 +1568,17 @@ function enterApp_(user, opts){
   document.getElementById('navLogAktivitas').classList.toggle('hide', user.role !== 'admin');
   document.getElementById('navLeaderboard').classList.remove('hide'); // Papan Peringkat sekarang tersedia untuk semua role (petugas hanya lihat kecamatan tugasnya)
   loadFilterOptions();
-  prefetchDefaultList_(); // panaskan cache Daftar Kendaraan (filter default) di background sebelum user buka menunya
+  // PERBAIKAN PERFORMA LOGIN: prefetch Daftar Kendaraan ditunda sampai browser
+  // menganggur (requestIdleCallback/setTimeout) supaya TIDAK bersaing dengan
+  // getDashboardBundle (loadDashboard) yang sedang dimuat saat login -- di HP dengan
+  // koneksi lambat, 3 panggilan server serentak (filter + prefetch + dashboard) saling
+  // memperlambat dan dashboard terasa lama muncul. Prefetch tetap jalan, hanya
+  // di belakang layar setelah layar utama (Dashboard) keburu tampil.
+  if(window.requestIdleCallback){
+    requestIdleCallback(function(){ try { prefetchDefaultList_(); } catch(e){ /* abaikan */ } }, { timeout: 3000 });
+  } else {
+    setTimeout(function(){ try { prefetchDefaultList_(); } catch(e){ /* abaikan */ } }, 1500);
+  }
   startIdleWatcher_();
   // Login PERTAMA KALI (lewat form login, opts.forceDashboard = true dari doLogin) -> SELALU
   // dibuka di Dashboard, apapun layar terakhir yang pernah dibuka sebelumnya.
@@ -2411,35 +2421,37 @@ function loadFilterOptions(){
       // ini sampai terpanggil lebih dari sekali dalam satu sesi (mis. race kondisi jaringan),
       // dropdown TIDAK ikut menumpuk opsi yang sama dua kali (ini akar masalah dropdown Periode
       // yang tampil dobel, lihat catatan di bawah).
+      // PERBAIKAN PERFORMA: dropdown diisi lewat SATU string HTML sekaligus (bukan
+      // createElement + appendChild per opsi) -- jauh lebih cepat di HP untuk puluhan
+      // kecamatan/desa/periode, dan menghindari reflow DOM berkali-kali.
       const kecSel = document.getElementById('filterKec');
-      kecSel.innerHTML = '<option value="">Semua Kecamatan</option>';
+      let kecHtml = '<option value="">Semua Kecamatan</option>';
       opt.wilayah.forEach(function(w){
-        const o = document.createElement('option'); o.value = w.kecamatan; o.textContent = w.kecamatan;
-        kecSel.appendChild(o);
+        kecHtml += '<option value="' + escapeHtml_(w.kecamatan) + '">' + escapeHtml_(w.kecamatan) + '</option>';
       });
+      kecSel.innerHTML = kecHtml;
       const stSel = document.getElementById('fStatusKendaraan');
-      stSel.innerHTML = '<option value="">- Pilih -</option>';
+      let stHtml = '<option value="">- Pilih -</option>';
       opt.status_kendaraan.forEach(function(s){
-        const o = document.createElement('option'); o.value = s; o.textContent = s;
-        stSel.appendChild(o);
+        stHtml += '<option value="' + escapeHtml_(s) + '">' + escapeHtml_(s) + '</option>';
       });
+      stSel.innerHTML = stHtml;
       const periodeSel = document.getElementById('filterPeriode');
-      periodeSel.innerHTML = '<option value="">Semua Periode</option>';
       // Dedup di sisi klien (jaga-jaga di atas dedup yang sudah dilakukan server): kalau ada
       // nilai periode yang sama (beda spasi/huruf besar-kecil/spasi siluman) tetap hanya
       // ditampilkan satu pilihan saja di dropdown.
       const seenPeriode = {};
+      let periodeHtml = '<option value="">Semua Periode</option>';
       (opt.periode_list || []).forEach(function(p){
         const pTrim = String(p || '').replace(/[\u200B-\u200D\uFEFF\u00A0]/g, '').trim();
         if(!pTrim) return;
         const key = normalizePeriodeKey_(pTrim);
         if(seenPeriode[key]) return;
         seenPeriode[key] = true;
-        const o = document.createElement('option');
-        o.value = pTrim;
-        o.textContent = (normalizePeriodeKey_(pTrim) === normalizePeriodeKey_(opt.periode_aktif)) ? (pTrim + ' (Aktif)') : pTrim;
-        periodeSel.appendChild(o);
+        const label = (normalizePeriodeKey_(pTrim) === normalizePeriodeKey_(opt.periode_aktif)) ? (pTrim + ' (Aktif)') : pTrim;
+        periodeHtml += '<option value="' + escapeHtml_(pTrim) + '">' + escapeHtml_(label) + '</option>';
       });
+      periodeSel.innerHTML = periodeHtml;
     })
     .withFailureHandler(function(err){ toast('Gagal memuat opsi filter: ' + (err && err.message ? err.message : err)); })
     .getFilterOptions(CUR_USER.token);

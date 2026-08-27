@@ -7,6 +7,54 @@ khusus untuk hosting statis di GitHub (favicon/manifest/PWA & pendaftaran
 service worker) karena bagian itu tidak ada di paket Apps Script.
 
 
+## Perbaikan performa pengambilan data (aplikasi cepat & responsif)
+
+### 1. Cache opsi filter (Kecamatan/Desa/Periode) di server
+
+Sebelumnya `getFilterOptions` **menscan seluruh 3.652 baris** dari cache data mentah
+SETIAP kali aplikasi dibuka/login (hasilnya jarang berubah). Sekarang hasilnya
+di-cache per-user (5 menit) di Script Properties — scan 3.652 baris hanya terjadi
+sekali per masa berlaku, bukan setiap buka aplikasi. Cache otomatis dibuang begitu
+ada perubahan data (simpan hasil penelusuran, edit Sheet manual, rename username,
+arsip periode).
+
+### 2. Cegah rebuild cache Dashboard ganda di jam sibuk (LockService)
+
+`ensureDashboardCache_` sebelumnya hanya mengandalkan flag variabel global
+(`DASHCACHE_REBUILDING_`) yang TIDAK melindungi antar-request Apps Script yang
+berjalan bersamaan — kalau 2+ petugas membuka Dashboard/Report/Papan Peringkat
+hampir bersamaan saat cache kotor, SEMUANYA bisa memicu rebuild penuh (scan 3.652
+baris + bangun semua agregasi + tulis ulang sheet) serentak. Sekarang rebuild
+dibungkus **LockService**: hanya request pertama yang rebuild, request lain
+menunggu (maks 25 detik) lalu memakai hasilnya.
+
+### 3. Prefetch Daftar Kendaraan ditunda saat login
+
+Saat login, aplikasi sebelumnya menjalankan 3 panggilan server hampir serentak:
+`loadFilterOptions` + `prefetchDefaultList_` + `getDashboardBundle` (dashboard).
+Di HP dengan koneksi lambat ini saling memperlambat. Prefetch daftar sekarang
+ditunda sampai browser menganggur (`requestIdleCallback`/`setTimeout`), jadi
+Dashboard & filter options tampil lebih dulu — daftar tetap ter-prefetch di
+belakang layar tanpa bikin login terasa berat.
+
+### 4. Dropdown filter diisi dengan string HTML sekaligus
+
+`loadFilterOptions` sebelumnya membuat elemen `<option>` satu-per-satu
+(`createElement` + `appendChild`) untuk puluhan kecamatan/desa/periode — lambat
+di HP dan memicu banyak reflow DOM. Sekarang diisi lewat SATU string HTML sekaligus
+(`innerHTML`), jauh lebih cepat.
+
+### 5. Catatan: server sudah optimal sebelumnya
+
+- Semua fungsi baca (daftar, detail, dashboard, laporan, leaderboard) memakai
+  `getKendaraanRawCached_` (cache data mentah 5 menit, di-patch per-baris saat
+  simpan, bukan dihapus total).
+- `getKendaraanList_core` hanya mengonversi baris yang benar-benar dirender
+  (pagination), bukan semua 3.652 baris.
+- Dashboard/Report/Leaderboard membaca dari **DashboardCache** (agregasi satu-pass,
+  lazy rebuild), bukan menscan ulang Sheet.
+- Payload per halaman daftar cuma ±11 KB — data bukan biaya dominan.
+
 ## Perbaikan terbaru (analisis penyebab "berat/lambat/tidak responsif")
 
 ### 1. Bug fatal: aplikasi tidak bisa dijalankan sama sekali (paling berdampak)
