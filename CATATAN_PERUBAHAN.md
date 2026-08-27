@@ -6,6 +6,46 @@
 khusus untuk hosting statis di GitHub (favicon/manifest/PWA & pendaftaran
 service worker) karena bagian itu tidak ada di paket Apps Script.
 
+
+## Perbaikan terbaru (analisis penyebab "berat/lambat/tidak responsif")
+
+### 1. Bug fatal: aplikasi tidak bisa dijalankan sama sekali (paling berdampak)
+
+Ditemukan fungsi `loadLeaderboard()` di `Index.html` (paket KBMDU) yang **tidak
+ditutup dengan kurung kurawal `}`** — kemungkinan akibat edit parsial sebelumnya.
+Seluruh JavaScript di halaman gagal di-parse browser, sehingga aplikasi **tidak
+jalan sama sekali** (layar kosong / error di console). Ini yang paling mungkin
+dirasakan sebagai "aplikasi berat, lambat, tidak responsif" — sebenarnya aplikasi
+tidak berfungsi total. Sekarang sudah ditutup dengan benar.
+
+### 2. Fungsi skeleton chart hilang (`skelLbChart_`)
+
+Fungsi `skelLbChart_()` (placeholder loading grafik Papan Peringkat/Dashboard)
+**tidak ada** di `Index.html` KBMDU, padahal dipanggil di 2 tempat. Kalau
+Dashboard/Papan Peringkat dibuka, browser akan error `skelLbChart_ is not
+defined`. Fungsi ini sudah ditambahkan kembali.
+
+### 3. Shim `google.script.run` tanpa retry/timeout (kadang error di lapangan)
+
+`Index.html` KBMDU masih memakai shim versi lama: setiap panggilan ke server
+Apps Script hanya dilakukan **satu kali** — begitu koneksi HP putus sesaat atau
+server sedang sibuk (kuota "too many simultaneous invocations"), langsung
+menampilkan error dan petugas harus menekan ulang sendiri. Sekarang diselaraskan
+dengan versi terbaru di Repo_Github:
+- **Retry otomatis** (maks 2× ulang, total 3×) untuk error sementara (server
+  sibuk / koneksi putus), dengan jeda backoff 0,7–2,5 detik.
+- **Timeout 25 detik** — panggilan tidak pernah menggantung tanpa batas.
+- **Ping cold-start** di latar belakang begitu halaman dibuka, supaya login
+  pertama tidak kena "cold start" Apps Script yang lama.
+
+### 4. Verifikasi menyeluruh
+
+- `Index.html` KBMDU & `index.html` Repo_Github: sintaks valid (node --check).
+- Semua fungsi lokal yang dipanggil **terdefinisi** (cek AST).
+- Eksekusi blok JS di lingkungan simulasi **tanpa error**; `google.script.run`,
+  `callServerFn_`, `skelLbChart_`, `loadLeaderboard` semua tersedia.
+- `_script_check.js` (alat verifikasi di paket KBMDU) **diperbaiki** — sebelumnya
+  merupakan ekstrak yang rusak/terpotong sehingga cek sintaks selalu gagal.
 ## Fitur/perbaikan baru yang ikut masuk dari update KBMDU
 - **Tombol "Unduh Daftar (Semua)"** di layar Daftar Kendaraan — label tombol
   otomatis mengikuti tab/kategori yang sedang aktif (Semua / Belum
