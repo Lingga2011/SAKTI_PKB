@@ -467,6 +467,12 @@
 
   .report-toolbar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
   .report-toolbar .btn-elegant{flex:1;min-width:130px;}
+  /* Tabel Status Kendaraan (13 kategori) -- header teksnya lebih panjang dari tabel Rekap
+     Petugas, jadi dibuat wrap 2 baris + font lebih kecil supaya tetap ringkas & tidak
+     terlalu lebar; nama kategori lengkap tetap ada lewat atribut title (tooltip saat hover). */
+  table.report-table-status{min-width:1200px;}
+  table.report-table-status th{white-space:normal;font-size:10px;line-height:1.2;padding:6px 5px;text-align:center;border:1px solid rgba(255,255,255,.35);}
+  table.report-table-status td{text-align:center;border:1px solid #d7dbe3;}
   .report-meta{font-size:11px;color:var(--muted);margin-bottom:10px;}
   .report-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--border);border-radius:12px;background:#fff;}
   table.report-table{border-collapse:collapse;width:100%;min-width:980px;font-size:11.5px;}
@@ -717,43 +723,69 @@
 
       <!-- Report -->
       <div id="screenReport" class="hide">
-        <div class="report-toolbar">
-          <button type="button" class="btn-elegant tone-primary" id="btnExportExcel"><span class="ico">📊</span><span class="btn-label">Unduh Excel</span></button>
-          <button type="button" class="btn-elegant tone-outline" id="btnExportPdf"><span class="ico">📄</span><span class="btn-label">Unduh PDF</span></button>
-          <button type="button" class="btn-elegant tone-outline" id="btnCetakKecamatan"><span class="ico">🖨️</span><span class="btn-label">Cetak Per Kecamatan</span></button>
+        <div class="tugas-tabs" id="reportTypeTabs">
+          <div class="tab-btn active" data-report-tab="rekap">Rekap Petugas</div>
+          <div class="tab-btn" data-report-tab="status">Status Kendaraan</div>
         </div>
-        <div class="report-meta" id="reportMeta">Memuat laporan...</div>
-        <div class="report-table-wrap">
-          <table class="report-table" id="reportTable">
-            <thead>
-              <tr>
-                <th rowspan="2">No</th>
-                <th rowspan="2" class="txt">Nama Petugas</th>
-                <th rowspan="2" class="txt">Kecamatan</th>
-                <th rowspan="2" class="txt">Desa</th>
-                <th colspan="2" class="grp">Jumlah Data R2</th>
-                <th colspan="2" class="grp">Jumlah Data R4</th>
-                <th colspan="2" class="grp total-grp">Total Data</th>
-                <th colspan="2" class="grp">Sudah Ditelusuri</th>
-                <th colspan="2" class="grp">Belum Ditelusuri</th>
-                <th colspan="2" class="grp">Sudah Bayar</th>
-                <th colspan="2" class="grp">Belum Bayar</th>
-              </tr>
-              <tr>
-                <th>Unit</th><th>Pajak</th>
-                <th>Unit</th><th>Pajak</th>
-                <th class="total-grp">Unit</th><th class="total-grp">Pajak</th>
-                <th>Unit</th><th>Pajak</th>
-                <th>Unit</th><th>Pajak</th>
-                <th>Unit</th><th>Pajak</th>
-                <th>Unit</th><th>Pajak</th>
-              </tr>
-            </thead>
-            <tbody id="reportTbody"></tbody>
-            <tfoot id="reportTfoot"></tfoot>
-          </table>
+
+        <!-- Sub-menu 1: Rekap per Petugas + Kecamatan + Desa (sudah ada sebelumnya) -->
+        <div id="reportTabRekap">
+          <div class="report-toolbar">
+            <button type="button" class="btn-elegant tone-primary" id="btnExportExcel"><span class="ico">📊</span><span class="btn-label">Unduh Excel</span></button>
+            <button type="button" class="btn-elegant tone-outline" id="btnExportPdf"><span class="ico">📄</span><span class="btn-label">Unduh PDF</span></button>
+            <button type="button" class="btn-elegant tone-outline" id="btnCetakKecamatan"><span class="ico">🖨️</span><span class="btn-label">Cetak Per Kecamatan</span></button>
+          </div>
+          <div class="report-meta" id="reportMeta">Memuat laporan...</div>
+          <div class="report-table-wrap">
+            <table class="report-table" id="reportTable">
+              <thead>
+                <tr>
+                  <th rowspan="2">No</th>
+                  <th rowspan="2" class="txt">Nama Petugas</th>
+                  <th rowspan="2" class="txt">Kecamatan</th>
+                  <th rowspan="2" class="txt">Desa</th>
+                  <th colspan="2" class="grp">Jumlah Data R2</th>
+                  <th colspan="2" class="grp">Jumlah Data R4</th>
+                  <th colspan="2" class="grp total-grp">Total Data</th>
+                  <th colspan="2" class="grp">Sudah Ditelusuri</th>
+                  <th colspan="2" class="grp">Belum Ditelusuri</th>
+                  <th colspan="2" class="grp">Sudah Bayar</th>
+                  <th colspan="2" class="grp">Belum Bayar</th>
+                </tr>
+                <tr>
+                  <th>Unit</th><th>Pajak</th>
+                  <th>Unit</th><th>Pajak</th>
+                  <th class="total-grp">Unit</th><th class="total-grp">Pajak</th>
+                  <th>Unit</th><th>Pajak</th>
+                  <th>Unit</th><th>Pajak</th>
+                  <th>Unit</th><th>Pajak</th>
+                  <th>Unit</th><th>Pajak</th>
+                </tr>
+              </thead>
+              <tbody id="reportTbody"></tbody>
+              <tfoot id="reportTfoot"></tfoot>
+            </table>
+          </div>
+          <div class="report-empty hide" id="reportEmptyHint">Belum ada data untuk dilaporkan.</div>
         </div>
-        <div class="report-empty hide" id="reportEmptyHint">Belum ada data untuk dilaporkan.</div>
+
+        <!-- Sub-menu 2 (BARU): Rekap Status Kendaraan (13 kategori) per Kecamatan --
+             kolom: No, Kecamatan, lalu 13 kategori Status Kendaraan, jumlah unit per kategori. -->
+        <div id="reportTabStatus" class="hide">
+          <div class="report-toolbar">
+            <button type="button" class="btn-elegant tone-primary" id="btnExportExcelStatus"><span class="ico">📊</span><span class="btn-label">Unduh Excel</span></button>
+            <button type="button" class="btn-elegant tone-outline" id="btnExportPdfStatus"><span class="ico">📄</span><span class="btn-label">Unduh PDF</span></button>
+          </div>
+          <div class="report-meta" id="reportStatusMeta">Memuat laporan...</div>
+          <div class="report-table-wrap">
+            <table class="report-table report-table-status" id="reportStatusTable">
+              <thead id="reportStatusThead"></thead>
+              <tbody id="reportStatusTbody"></tbody>
+              <tfoot id="reportStatusTfoot"></tfoot>
+            </table>
+          </div>
+          <div class="report-empty hide" id="reportStatusEmptyHint">Belum ada data untuk dilaporkan.</div>
+        </div>
       </div>
 
       <!-- Papan Peringkat / Leaderboard Kecamatan -->
@@ -1139,6 +1171,18 @@ function callServerFn_(fnName, args, attempt) {
   window.google.script = window.google.script || {};
   window.google.script.run = buildRunner({});
 })();
+
+// ----------------------------------------------------------------------------
+// MITIGASI #1 -- "cold start" Apps Script Web App (lihat pembahasan sebelumnya soal
+// login yang kadang sangat lama): begitu shim di atas siap, langsung kirim 1 panggilan
+// ping() yang SANGAT ringan (lihat ping() di Code.gs -- sengaja tidak menyentuh
+// Spreadsheet sama sekali) ke backend di LATAR BELAKANG, tanpa menunggu hasilnya dan
+// tanpa mempengaruhi apa pun di layar. Tujuannya memaksa Apps Script menghangatkan
+// lingkungan eksekusinya SELAGI petugas masih mengetik username & password -- supaya
+// begitu tombol "Masuk" ditekan, panggilan login() yang sesungguhnya kemungkinan besar
+// sudah tidak kena cold start lagi. Kalau ping ini gagal (mis. benar-benar offline),
+// dibiarkan saja -- proses login tetap akan retry sendiri lewat callServerFn_ di atas.
+try { callServerFn_('ping', [], 0).catch(function () {}); } catch (e) { /* abaikan */ }
 
 let CUR_USER = null; // {username, role, name, foto_url, token}
 // Role "viewer" (baru): hanya boleh MELIHAT data (Dashboard/Daftar Kendaraan/Report/Papan
@@ -1651,8 +1695,18 @@ function doLogin(){
   if(!u || !p){ errEl.textContent = 'Username & password wajib diisi.'; return; }
   const btn = document.getElementById('btnLogin');
   btn.disabled = true; btn.textContent = 'Memeriksa...';
+  // MITIGASI #2 -- kesan "macet"/hang: proses login kadang genuinely butuh beberapa detik
+  // (backend baru dihangatkan/masih cold start meski sudah di-ping di atas, atau server
+  // sedang sibuk dan retry otomatis di callServerFn_/withRetry_ sedang berjalan). Supaya
+  // petugas tidak mengira aplikasinya macet, tampilkan pesan yang jujur -- TAPI baru
+  // setelah lebih lama dari wajar (3 detik), supaya login yang cepat/normal tidak
+  // terganggu tampilan berkedip.
+  const slowHintTimer_ = setTimeout(function () {
+    btn.textContent = 'Menghubungi server, mohon tunggu...';
+  }, 3000);
   google.script.run
     .withSuccessHandler(function(res){
+      clearTimeout(slowHintTimer_);
       btn.disabled = false; btn.textContent = 'Masuk';
       if(!res.ok){ errEl.textContent = res.message; return; }
       saveSession_(res, remember);
@@ -1664,6 +1718,7 @@ function doLogin(){
       enterApp_(res, { forceDashboard: true });
     })
     .withFailureHandler(function(err){
+      clearTimeout(slowHintTimer_);
       // callServerFn_ SUDAH mencoba ulang otomatis (maks 3x total) kalau ini error sementara
       // (server sibuk/koneksi putus) -- sampai di sini artinya semua percobaan itu tetap gagal.
       btn.disabled = false; btn.textContent = 'Masuk';
@@ -1758,6 +1813,14 @@ function goScreen(name, opts){
     document.getElementById('screenReport').classList.remove('hide');
     document.getElementById('topbarTitle').textContent = 'Report';
     document.querySelector('[data-nav="report"]').classList.add('active');
+    // Selalu reset ke sub-menu "Rekap Petugas" tiap kali layar Report dibuka dari nav bawah;
+    // sub-menu "Status Kendaraan" dimuat ulang (fresh) hanya saat diklik, lihat listener
+    // #reportTypeTabs di bawah -- REPORT_STATUS_LOADED_ = false memaksa reload saat itu.
+    document.querySelectorAll('#reportTypeTabs .tab-btn').forEach(function(b){ b.classList.remove('active'); });
+    document.querySelector('#reportTypeTabs [data-report-tab="rekap"]').classList.add('active');
+    document.getElementById('reportTabRekap').classList.remove('hide');
+    document.getElementById('reportTabStatus').classList.add('hide');
+    REPORT_STATUS_LOADED_ = false;
     loadReport();
   } else if(name === 'leaderboard'){
     // Sekarang bisa dibuka SEMUA role yang login (sebelumnya admin-only). Petugas melihat versi
@@ -2159,6 +2222,174 @@ document.getElementById('btnCetakKecamatan').addEventListener('click', function(
     columnStyles: { 0:{halign:'center'}, 1:{halign:'left'} }
   });
   doc.save(reportKecFileBaseName_() + '.pdf');
+});
+
+// ---------- SUB-MENU "STATUS KENDARAAN" (13 kategori) DI DALAM REPORT ----------
+// Label singkat untuk header tabel (nama kategori asli dari STATUS_KENDARAAN_OPTIONS di
+// Code.gs ada yang panjang) -- nama LENGKAP tetap ditaruh di atribut title (tooltip saat
+// hover/tekan-lama header), supaya kolom tidak terlalu lebar tapi info lengkap tetap ada.
+// Kalau daftar kategori di server berubah/bertambah, kategori baru otomatis tampil pakai
+// nama lengkapnya (fallback) walau belum didaftarkan di sini.
+const REPORT_STATUS_SHORT_LABELS_ = {
+  'KENDARAAN HILANG': 'Kendaraan Hilang',
+  'KENDARAAN RUSAK': 'Kendaraan Rusak',
+  'PENGUASAAN LEASING': 'Penguasaan Leasing',
+  'SUDAH DIJUAL': 'Sudah Dijual',
+  'PINDAH ALAMAT': 'Pindah Alamat',
+  'DISITA NEGARA': 'Disita Negara',
+  'PINJAM NAMA': 'Pinjam Nama',
+  'AKAN MEMBAYAR': 'Akan Membayar',
+  'ALAMAT TIDAK SESUAI DENGAN DATA': 'Alamat Tdk Sesuai',
+  'WAJIB PAJAK MENOLAK DIDATA': 'WP Menolak Didata',
+  'PEMILIK MENINGGAL DUNIA': 'Pemilik Meninggal Dunia',
+  'KENDARAAN DALAM STATUS SENGKETA': 'Status Sengketa',
+  'PENERIMA MERASA TIDAK MEMILIKI KENDARAAN': 'Merasa Tdk Memiliki'
+};
+function reportStatusShortLabel_(cat){ return REPORT_STATUS_SHORT_LABELS_[cat] || cat; }
+
+let REPORT_STATUS_ROWS_ = [];
+let REPORT_STATUS_CATEGORIES_ = [];
+let REPORT_STATUS_GENERATED_AT_ = null;
+let REPORT_STATUS_LOADED_ = false; // dipaksa false lagi tiap kali layar Report dibuka dari nav (lihat goScreen)
+
+function loadReportStatus(){
+  document.getElementById('reportStatusMeta').textContent = 'Memuat laporan...';
+  document.getElementById('reportStatusTbody').innerHTML = '';
+  document.getElementById('reportStatusTfoot').innerHTML = '';
+  document.getElementById('reportStatusEmptyHint').classList.add('hide');
+  google.script.run
+    .withSuccessHandler(function(data){ REPORT_STATUS_LOADED_ = true; renderReportStatus_(data); })
+    .withFailureHandler(function(err){
+      REPORT_STATUS_LOADED_ = false;
+      document.getElementById('reportStatusMeta').textContent = '';
+      document.getElementById('reportStatusEmptyHint').classList.remove('hide');
+      document.getElementById('reportStatusEmptyHint').textContent = 'Gagal memuat laporan.';
+      toast('Gagal memuat laporan status kendaraan: ' + (err && err.message ? err.message : err));
+    })
+    .getLaporanStatusKendaraan(CUR_USER.token);
+}
+function renderReportStatus_(data){
+  REPORT_STATUS_ROWS_ = (data && data.rows) || [];
+  REPORT_STATUS_CATEGORIES_ = (data && data.categories) || [];
+  REPORT_STATUS_GENERATED_AT_ = (data && data.generated_at) || null;
+
+  const thead = document.getElementById('reportStatusThead');
+  const tbody = document.getElementById('reportStatusTbody');
+  const tfoot = document.getElementById('reportStatusTfoot');
+  const metaEl = document.getElementById('reportStatusMeta');
+  const emptyEl = document.getElementById('reportStatusEmptyHint');
+
+  // Header: No, Kecamatan, lalu tiap kategori status kendaraan, lalu Total.
+  let headHtml = '<tr><th>No</th><th>Kecamatan</th>';
+  REPORT_STATUS_CATEGORIES_.forEach(function(cat){
+    headHtml += '<th title="'+escReport_(cat)+'">'+escReport_(reportStatusShortLabel_(cat))+'</th>';
+  });
+  headHtml += '<th class="total-grp">Total</th></tr>';
+  thead.innerHTML = headHtml;
+
+  if(!REPORT_STATUS_ROWS_.length){
+    tbody.innerHTML = '';
+    tfoot.innerHTML = '';
+    metaEl.textContent = '';
+    emptyEl.textContent = 'Belum ada data untuk dilaporkan.';
+    emptyEl.classList.remove('hide');
+    return;
+  }
+  emptyEl.classList.add('hide');
+
+  const genDate = REPORT_STATUS_GENERATED_AT_ ? new Date(REPORT_STATUS_GENERATED_AT_) : new Date();
+  const genStr = genDate.toLocaleString('id-ID', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  metaEl.textContent = REPORT_STATUS_ROWS_.length + ' kecamatan - jumlah kendaraan per status kendaraan (13 kategori) - kendaraan yang belum ditelusuri tidak dihitung - diperbarui ' + genStr;
+
+  const totals = {};
+  REPORT_STATUS_CATEGORIES_.forEach(function(c){ totals[c] = 0; });
+  let totalAll = 0;
+  let html = '';
+  REPORT_STATUS_ROWS_.forEach(function(r){
+    html += '<tr><td>'+r.no+'</td><td class="txt">'+escReport_(r.kecamatan)+'</td>';
+    REPORT_STATUS_CATEGORIES_.forEach(function(cat){
+      const v = Number((r.counts || {})[cat]) || 0;
+      totals[cat] += v;
+      html += '<td>'+reportFmt_(v)+'</td>';
+    });
+    html += '<td class="total-unit">'+reportFmt_(r.total)+'</td></tr>';
+    totalAll += Number(r.total) || 0;
+  });
+  tbody.innerHTML = html;
+
+  let footHtml = '<tr><td colspan="2" class="txt">TOTAL</td>';
+  REPORT_STATUS_CATEGORIES_.forEach(function(cat){ footHtml += '<td>'+reportFmt_(totals[cat])+'</td>'; });
+  footHtml += '<td class="total-unit">'+reportFmt_(totalAll)+'</td></tr>';
+  tfoot.innerHTML = footHtml;
+}
+
+// Klik tab "Rekap Petugas" <-> "Status Kendaraan": tukar tampilan sub-menu, dan muat data
+// Status Kendaraan hanya saat pertama kali dibuka (REPORT_STATUS_LOADED_) supaya tidak
+// memanggil server berkali-kali kalau user bolak-balik klik tab dalam kunjungan yang sama.
+document.querySelectorAll('#reportTypeTabs .tab-btn').forEach(function(el){
+  el.addEventListener('click', function(){
+    const tab = el.dataset.reportTab;
+    document.querySelectorAll('#reportTypeTabs .tab-btn').forEach(function(b){ b.classList.remove('active'); });
+    el.classList.add('active');
+    document.getElementById('reportTabRekap').classList.toggle('hide', tab !== 'rekap');
+    document.getElementById('reportTabStatus').classList.toggle('hide', tab !== 'status');
+    if(tab === 'status' && !REPORT_STATUS_LOADED_) loadReportStatus();
+  });
+});
+
+function reportStatusExportRows_(){
+  const rows = REPORT_STATUS_ROWS_.map(function(r){
+    const row = [r.no, r.kecamatan];
+    REPORT_STATUS_CATEGORIES_.forEach(function(cat){ row.push(Number((r.counts || {})[cat]) || 0); });
+    row.push(r.total);
+    return row;
+  });
+  const totals = {};
+  REPORT_STATUS_CATEGORIES_.forEach(function(c){ totals[c] = 0; });
+  let totalAll = 0;
+  REPORT_STATUS_ROWS_.forEach(function(r){
+    REPORT_STATUS_CATEGORIES_.forEach(function(cat){ totals[cat] += Number((r.counts || {})[cat]) || 0; });
+    totalAll += Number(r.total) || 0;
+  });
+  const totalRow = ['', 'TOTAL'];
+  REPORT_STATUS_CATEGORIES_.forEach(function(cat){ totalRow.push(totals[cat]); });
+  totalRow.push(totalAll);
+  rows.push(totalRow);
+  return rows;
+}
+function reportStatusFileBaseName_(){
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2,'0');
+  return 'Laporan_Status_Kendaraan_KBMDU_' + d.getFullYear() + pad(d.getMonth()+1) + pad(d.getDate());
+}
+document.getElementById('btnExportExcelStatus').addEventListener('click', function(){
+  if(!REPORT_STATUS_ROWS_.length){ toast('Belum ada data untuk diunduh.'); return; }
+  if(typeof XLSX === 'undefined'){ toast('Modul Excel belum termuat, coba lagi sesaat lagi.'); return; }
+  const header = ['No', 'Kecamatan'].concat(REPORT_STATUS_CATEGORIES_.map(reportStatusShortLabel_)).concat(['Total']);
+  const aoa = [header].concat(reportStatusExportRows_());
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{wch:5},{wch:16}].concat(REPORT_STATUS_CATEGORIES_.map(function(){ return {wch:12}; })).concat([{wch:10}]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Status Kendaraan');
+  XLSX.writeFile(wb, reportStatusFileBaseName_() + '.xlsx');
+});
+document.getElementById('btnExportPdfStatus').addEventListener('click', function(){
+  if(!REPORT_STATUS_ROWS_.length){ toast('Belum ada data untuk diunduh.'); return; }
+  if(typeof window.jspdf === 'undefined'){ toast('Modul PDF belum termuat, coba lagi sesaat lagi.'); return; }
+  const doc = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+  doc.setFontSize(12);
+  doc.text('Laporan Status Kendaraan (13 Kategori) - KBMDU', 30, 26);
+  const head = [['No', 'Kecamatan'].concat(REPORT_STATUS_CATEGORIES_.map(reportStatusShortLabel_)).concat(['Total'])];
+  doc.autoTable({
+    head: head,
+    body: reportStatusExportRows_().map(function(r){ return r.map(function(v){ return typeof v === 'number' ? formatAngka_(v) : v; }); }),
+    startY: 36,
+    styles: { fontSize: 6.5, cellPadding: 2.5 },
+    headStyles: { fillColor: [11,37,69], halign: 'center', valign: 'middle', fontSize: 6.5 },
+    bodyStyles: { halign: 'right' },
+    columnStyles: { 0:{halign:'center'}, 1:{halign:'left'} }
+  });
+  doc.save(reportStatusFileBaseName_() + '.pdf');
 });
 
 // ---------- FILTER OPTIONS ----------
