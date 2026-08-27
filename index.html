@@ -1049,6 +1049,65 @@
 // ============================================================================
 var API_URL_ = 'https://script.google.com/macros/s/AKfycbwG6vbNqYmwxq5FSvsOL0_nmrLffPeAV45ZClKJ_-5sRbWTT2g4PV5NEUti5dqszccxzg/exec';
 
+// ----------------------------------------------------------------------------
+// PERBAIKAN KEANDALAN (mengatasi "kadang error"): SEBELUM INI, hanya doLogin() yang
+// punya percobaan ulang otomatis kalau server sedang sibuk -- ke-29 titik pemanggilan
+// google.script.run LAINNYA (buka Daftar Kendaraan, simpan hasil penelusuran, unggah
+// foto bukti, dst) langsung menampilkan error ke petugas begitu satu kali fetch() gagal
+// -- padahal di lapangan koneksi HP wajar sesekali putus/lambat sedetik dua detik, dan
+// backend Apps Script (dipakai bersama SEMUA petugas, lihat catatan di appsscript.json)
+// bisa saja sedang sibuk sesaat. SEKARANG logika retry+timeout dipindah ke SATU tempat
+// di sini (callServerFn_), supaya berlaku otomatis untuk SEMUA pemanggilan google.script.run
+// tanpa perlu menulis ulang tiap titik pemanggilannya satu-satu.
+//
+// CATATAN untuk aksi tulis yang TIDAK sepenuhnya idempotent (mis. uploadBuktiFoto/
+// uploadProfilePhoto membuat file Drive baru tiap dipanggil): kalau retry terjadi PERSIS
+// setelah permintaan pertama sebenarnya sudah berhasil tapi responsnya tidak sempat
+// sampai ke HP (mis. jaringan putus di tengah), percobaan ulang bisa membuat 1 file foto
+// duplikat di Drive. Ini SENGAJA diterima sebagai trade-off -- file foto duplikat cuma
+// sisa berkas tidak berbahaya, jauh lebih baik daripada hasil penelusuran petugas gagal
+// tersimpan total dan harus diulang dari awal di lapangan.
+// ----------------------------------------------------------------------------
+var API_CALL_TIMEOUT_MS_ = 25000; // 25 detik -- Apps Script kadang perlu waktu (cold start / kuota Spreadsheet sedang padat), jangan terlalu pendek
+var API_MAX_RETRY_ = 2; // percobaan ULANG (jadi maksimal 3x total per panggilan), hanya untuk error yang jelas-jelas sementara
+
+function isRetryableApiError_(err) {
+  var msg = String(err && err.message ? err.message : err || '');
+  return /terlalu banyak penjalanan skrip simultan|too many simultaneous invocations|service invoked too many times|rate limit exceeded|internal error|failed to fetch|networkerror|load failed|batas waktu/i.test(msg);
+}
+
+function callServerFn_(fnName, args, attempt) {
+  attempt = attempt || 0;
+  var controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  var timeoutId = controller ? setTimeout(function () { controller.abort(); }, API_CALL_TIMEOUT_MS_) : null;
+  function clearTimer_() { if (timeoutId) clearTimeout(timeoutId); }
+
+  // Content-Type SENGAJA "text/plain" (bukan "application/json") supaya browser TIDAK
+  // melakukan CORS preflight (OPTIONS) -- Apps Script Web App tidak punya doOptions, jadi
+  // preflight akan gagal kalau Content-Type memicunya.
+  return fetch(API_URL_, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ fn: fnName, args: args }),
+    signal: controller ? controller.signal : undefined
+  })
+    .then(function (res) { clearTimer_(); return res.json(); })
+    .then(function (payload) {
+      if (payload && payload.ok) return payload.result;
+      throw new Error((payload && payload.error && payload.error.message) || 'Permintaan ke server gagal.');
+    })
+    .catch(function (err) {
+      clearTimer_();
+      if (err && err.name === 'AbortError') err = new Error('Permintaan ke server melebihi batas waktu (koneksi lambat/terputus).');
+      if (attempt < API_MAX_RETRY_ && isRetryableApiError_(err)) {
+        var delay = 700 * Math.pow(2, attempt) + Math.floor(Math.random() * 300); // backoff + jitter, sama pola dengan withRetry_ di Code.gs
+        return new Promise(function (resolve) { setTimeout(resolve, delay); })
+          .then(function () { return callServerFn_(fnName, args, attempt + 1); });
+      }
+      throw err;
+    });
+}
+
 (function () {
   function buildRunner(handlers) {
     var proxy = {};
@@ -1065,22 +1124,9 @@ var API_URL_ = 'https://script.google.com/macros/s/AKfycbwG6vbNqYmwxq5FSvsOL0_nm
         // Panggilan sesungguhnya: google.script.run.<fnName>(arg1, arg2, ...)
         return function () {
           var args = Array.prototype.slice.call(arguments);
-          // Content-Type SENGAJA "text/plain" (bukan "application/json") supaya browser
-          // TIDAK melakukan CORS preflight (OPTIONS) -- Apps Script Web App tidak punya
-          // doOptions, jadi preflight akan gagal kalau Content-Type memicunya.
-          fetch(API_URL_, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({ fn: fnName, args: args })
-          })
-            .then(function (res) { return res.json(); })
-            .then(function (payload) {
-              if (payload && payload.ok) {
-                if (handlers.withSuccessHandler) handlers.withSuccessHandler(payload.result);
-              } else {
-                var err = new Error((payload && payload.error && payload.error.message) || 'Permintaan ke server gagal.');
-                if (handlers.withFailureHandler) handlers.withFailureHandler(err); else throw err;
-              }
+          callServerFn_(fnName, args, 0)
+            .then(function (result) {
+              if (handlers.withSuccessHandler) handlers.withSuccessHandler(result);
             })
             .catch(function (err) {
               if (handlers.withFailureHandler) handlers.withFailureHandler(err); else throw err;
@@ -1588,18 +1634,15 @@ document.getElementById('btnTogglePass').addEventListener('click', function(){
   togglePwVisibility_(this, document.getElementById('loginPass'));
 });
 
-// Server (Code.gs) sudah mencoba ulang otomatis kalau kena kuota "Too many simultaneous
-// invocations: Spreadsheet" (lihat withRetry_ di Code.gs). Tapi kalau lonjakan pengguna
-// bersamaan benar-benar ekstrem, percobaan ulang di server bisa saja tetap habis. Sebagai
-// jaring pengaman TAMBAHAN di sisi klien: kalau error yang balik masih pesan kuota itu, coba
-// login ulang otomatis (maks 2x) dengan jeda singkat, sebelum benar-benar menampilkan gagal
-// ke pengguna. Supaya petugas di lapangan tidak perlu mengetuk tombol berkali-kali sendiri.
+// Dipakai di beberapa tempat (mis. tryRestoreSession_) untuk membedakan "server sedang
+// sibuk" dari error lain -- BUKAN lagi untuk retry manual di sini, karena retry+timeout
+// untuk SEMUA panggilan (termasuk login) kini otomatis terjadi di callServerFn_ (lihat
+// shim google.script.run di atas), jadi tidak perlu ditulis ulang lagi di tiap fungsi.
 function isBusyQuotaError_(err){
   const msg = String(err && err.message ? err.message : err || '');
   return /terlalu banyak penjalanan skrip simultan|too many simultaneous invocations|service invoked too many times|rate limit exceeded/i.test(msg);
 }
-function doLogin(retryCount){
-  retryCount = retryCount || 0;
+function doLogin(){
   const u = document.getElementById('loginUser').value.trim();
   const p = document.getElementById('loginPass').value;
   const remember = document.getElementById('loginRemember').checked;
@@ -1607,7 +1650,7 @@ function doLogin(retryCount){
   errEl.textContent = '';
   if(!u || !p){ errEl.textContent = 'Username & password wajib diisi.'; return; }
   const btn = document.getElementById('btnLogin');
-  btn.disabled = true; btn.textContent = retryCount > 0 ? 'Mencoba lagi...' : 'Memeriksa...';
+  btn.disabled = true; btn.textContent = 'Memeriksa...';
   google.script.run
     .withSuccessHandler(function(res){
       btn.disabled = false; btn.textContent = 'Masuk';
@@ -1621,13 +1664,11 @@ function doLogin(retryCount){
       enterApp_(res, { forceDashboard: true });
     })
     .withFailureHandler(function(err){
-      if(isBusyQuotaError_(err) && retryCount < 2){
-        setTimeout(function(){ doLogin(retryCount + 1); }, 800 + retryCount * 700);
-        return;
-      }
+      // callServerFn_ SUDAH mencoba ulang otomatis (maks 3x total) kalau ini error sementara
+      // (server sibuk/koneksi putus) -- sampai di sini artinya semua percobaan itu tetap gagal.
       btn.disabled = false; btn.textContent = 'Masuk';
       errEl.textContent = isBusyQuotaError_(err)
-        ? 'Server sedang sibuk (banyak pengguna bersamaan). Silakan tunggu beberapa detik lalu coba masuk lagi.'
+        ? 'Server sedang sibuk (banyak pengguna bersamaan). Sistem sudah otomatis mencoba beberapa kali; silakan tunggu sebentar lalu coba masuk lagi.'
         : 'Gagal login: ' + (err && err.message ? err.message : err);
     })
     .login(u, p);
