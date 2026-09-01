@@ -3234,11 +3234,10 @@
                     </select>
                     <div class="geoloc-row" style="margin-top:6px;">
                       <button type="button" class="btn-elegant tone-primary" id="btnBukaInfoPkb"><span
-                          class="ico">🌐</span><span class="btn-label">Buka Hasil di infopkb</span></button>
+                          class="ico">🌐</span><span class="btn-label">Buka Situs infopkb</span></button>
                     </div>
-                    <div class="map-hint">NOPOL kendaraan ini otomatis diisikan; halaman hasil pencarian infopkb
-                      langsung terbuka di tab baru. Cek keterangannya di sana, lalu isi Status Bayar di sini secara
-                      manual sesuai hasilnya.</div>
+                    <div class="map-hint">Situs akan terbuka di tab baru. Ketik NOPOL kendaraan ini di sana, lalu isi
+                      Status Bayar di sini secara manual sesuai hasilnya.</div>
                   </div>
                   <div class="field" id="fldGeotagging">
                     <label>Titik Lokasi (Geotagging) <span class="field-req">*</span></label>
@@ -5450,36 +5449,14 @@
       });
     });
 
-    // ---------- BUKA HASIL infopkb.bantenprov.go.id (NOPOL terisi otomatis) ----------
-    // Pengecekan otomatis dari SERVER (Apps Script) tidak bisa diandalkan -- situsnya
-    // melarang akses otomatis (robots.txt) dan tampaknya memblokir koneksi dari server
-    // Google di level jaringan (lihat error "Address unavailable" pada percobaan
-    // sebelumnya). Ini beda: form dikirim langsung dari BROWSER PETUGAS (bukan server),
-    // persis seperti kalau petugas mengisi & submit form itu sendiri -- cuma dipercepat.
-    // Struktur field (kode/nomor/seri/tgl/index -> p_infopkb.php) mengikuti payload yang
-    // sama dipakai fetchPkbInfo_ di Code.gs.
+    // ---------- BUKA SITUS infopkb.bantenprov.go.id ----------
+    // Percobaan mengisi & submit form otomatis (kode/nomor/seri/tgl/index -> p_infopkb.php)
+    // dari browser petugas ternyata gagal -- situsnya membalas halaman kosong, tandanya ada
+    // field/token lain yang dibutuhkan tapi tidak diketahui strukturnya. Daripada terus
+    // menebak-nebak cara kerja form situs itu, tombol ini kembali ke cara yang pasti jalan:
+    // buka halaman utama di tab baru, petugas isi NOPOL & klik "Cari" sendiri di situsnya.
     document.getElementById('btnBukaInfoPkb').addEventListener('click', function () {
-      var fallback = function () { window.open('https://infopkb.bantenprov.go.id/', '_blank', 'noopener'); };
-      if (!currentDetailNopol) { fallback(); return; }
-      var s = String(currentDetailNopol).trim().toUpperCase().replace(/[\s\-]+/g, '');
-      var m = /^([A-Z]{1,2})(\d{1,4})([A-Z]{0,3})$/.exec(s);
-      if (!m) { fallback(); return; }
-      var pad2 = function (n) { return (n < 10 ? '0' : '') + n; };
-      var d = new Date();
-      var tgl = pad2(d.getDate()) + '-' + pad2(d.getMonth() + 1) + '-' + d.getFullYear();
-      var fields = { kode: m[1], nomor: m[2], seri: m[3] || '', tgl: tgl, index: 'index.php' };
-      var f = document.createElement('form');
-      f.method = 'POST';
-      f.action = 'https://infopkb.bantenprov.go.id/p_infopkb.php';
-      f.target = '_blank';
-      Object.keys(fields).forEach(function (k) {
-        var inp = document.createElement('input');
-        inp.type = 'hidden'; inp.name = k; inp.value = fields[k];
-        f.appendChild(inp);
-      });
-      document.body.appendChild(f);
-      f.submit();
-      document.body.removeChild(f);
+      window.open('https://infopkb.bantenprov.go.id/', '_blank', 'noopener');
     });
 
     document.getElementById('btnBatalUpdate').addEventListener('click', async function () {
