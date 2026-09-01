@@ -3233,10 +3233,11 @@
                       <option value="SUDAH BAYAR">SUDAH BAYAR</option>
                     </select>
                     <div class="geoloc-row" style="margin-top:6px;">
-                      <button type="button" class="btn-elegant tone-primary" id="btnCekBayarOnline"><span
-                          class="ico">🔎</span><span class="btn-label">Cek Status Bayar Online</span></button>
+                      <button type="button" class="btn-elegant tone-primary" id="btnBukaInfoPkb"><span
+                          class="ico">🌐</span><span class="btn-label">Buka Situs infopkb</span></button>
                     </div>
-                    <div class="map-hint hide" id="cekBayarHint" style="margin:6px 0 0;"></div>
+                    <div class="map-hint">Situs akan terbuka di tab baru. Ketik NOPOL kendaraan ini di sana, lalu isi
+                      Status Bayar di sini secara manual sesuai hasilnya.</div>
                   </div>
                   <div class="field" id="fldGeotagging">
                     <label>Titik Lokasi (Geotagging) <span class="field-req">*</span></label>
@@ -5448,63 +5449,14 @@
       });
     });
 
-    // ---------- CEK STATUS BAYAR ONLINE (infopkb.bantenprov.go.id) ----------
-    // Sama dengan versi di paket KBMDU (Index.html): memanggil checkStatusBayarOnline
-    // di Code.gs untuk mengecek status pembayaran PKB kendaraan yang sedang dibuka di
-    // layar Detail. Hasilnya menampilkan keterangan dari situs, total tagihan, dan
-    // tanggal akhir PKB, lalu mengisi dropdown "Status Bayar" sesuai hasil (petugas
-    // masih boleh mengoreksi manual sebelum menyimpan).
-    let cekBayarBusy_ = false;
-    function runCekBayarOnline_() {
-      if (cekBayarBusy_) return;
-      if (!currentDetailNopol) { toast('Buka detail kendaraan dulu.'); return; }
-      cekBayarBusy_ = true;
-      const btn = document.getElementById('btnCekBayarOnline');
-      const hint = document.getElementById('cekBayarHint');
-      btn.disabled = true;
-      btn.innerHTML = '<span class="spinner"></span>Memeriksa...';
-      hint.classList.remove('hide');
-      hint.style.color = '';
-      hint.textContent = 'Memeriksa status pembayaran di infopkb.bantenprov.go.id...';
-      google.script.run
-        .withSuccessHandler(function (res) {
-          cekBayarBusy_ = false;
-          btn.disabled = false;
-          btn.innerHTML = '<span class="ico">🔎</span><span class="btn-label">Cek Status Bayar Online</span>';
-          if (!res || res.ok !== true) {
-            hint.style.color = 'var(--danger)';
-            hint.textContent = 'Gagal cek online: ' + ((res && res.message) || 'tidak diketahui');
-            return;
-          }
-          if (!res.ditemukan) {
-            hint.style.color = 'var(--danger)';
-            hint.textContent = res.message || 'Data kendaraan tidak ada di infopkb.';
-            return;
-          }
-          const parts = [];
-          if (res.keterangan) parts.push(res.keterangan);
-          if (res.jumlah_tagihan_teks) parts.push('Total tagihan: ' + res.jumlah_tagihan_teks);
-          if (res.tgl_akhir_pkb_yad) parts.push('Tgl. akhir PKB yad: ' + res.tgl_akhir_pkb_yad);
-          if (res.skpd_ada === true) parts.push('Bukti SKPD pembayaran tercatat.');
-          else if (res.skpd_ada === false) parts.push('Tidak ada SKPD pembayaran tercatat.');
-          hint.style.color = res.status_bayar === 'SUDAH BAYAR' ? 'var(--ok)' : 'var(--danger)';
-          hint.textContent = parts.join(' • ');
-          document.getElementById('fStatusBayar').value = res.status_bayar;
-          setFieldValid_('fldStatusBayar');
-          if (window.syncCsel_) { syncCsel_('fStatusBayar'); }
-          toast('Status bayar online: ' + res.status_bayar);
-        })
-        .withFailureHandler(function (err) {
-          cekBayarBusy_ = false;
-          btn.disabled = false;
-          btn.innerHTML = '<span class="ico">🔎</span><span class="btn-label">Cek Status Bayar Online</span>';
-          hint.classList.remove('hide');
-          hint.style.color = 'var(--danger)';
-          hint.textContent = 'Gagal cek online: ' + (err && err.message ? err.message : err);
-        })
-        .checkStatusBayarOnline(currentDetailNopol, CUR_USER.token);
-    }
-    document.getElementById('btnCekBayarOnline').addEventListener('click', runCekBayarOnline_);
+    // ---------- BUKA SITUS infopkb.bantenprov.go.id ----------
+    // Pengecekan otomatis lewat scraping server (Apps Script) sudah tidak bisa diandalkan --
+    // situsnya melarang akses otomatis (robots.txt) dan tampaknya juga memblokir koneksi dari
+    // server Google di level jaringan. Jadi tombol ini cuma membuka situsnya di tab baru;
+    // petugas ketik NOPOL sendiri di sana, lalu isi Status Bayar di form ini secara manual.
+    document.getElementById('btnBukaInfoPkb').addEventListener('click', function () {
+      window.open('https://infopkb.bantenprov.go.id/', '_blank', 'noopener');
+    });
 
     document.getElementById('btnBatalUpdate').addEventListener('click', async function () {
       const ok = await showConfirm('Batalkan perubahan? Data yang belum disimpan pada form ini akan hilang.', { danger: true, okText: 'Ya, Batalkan' });
